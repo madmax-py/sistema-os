@@ -339,7 +339,7 @@ html.dark .menu-usuario .dados .email { color: #8495ab; }
   background: linear-gradient(135deg, #e6f7fe, #ffffff, #e6f7fe);
 }
 html.dark .menu-cabecalho { background: #1c262f; border-bottom-color: #1c262f; }
-.menu-cabecalho .nome-app { display: flex; flex-direction: column; gap: 0.35rem; }
+.menu-cabecalho .nome-app { display: flex; flex-direction: column; align-items: flex-start; gap: 0.35rem; }
 .menu-cabecalho .nome-app small { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted); }
 .online { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.75rem; font-size: 0.75rem; font-weight: 500; color: var(--muted); }
 .online::before { content: ""; width: 0.5rem; height: 0.5rem; border-radius: 999px; background: #10b981; animation: pulso 2s ease-in-out infinite; }
@@ -817,7 +817,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0
 .conexao-atual .online { margin-top: 0; }
 
 /* ── Logo ProFinanças (branco no escuro, ciano no claro) ── */
-.logo { display: block; width: auto; }
+.logo { display: block; width: auto; max-width: 100%; object-fit: contain; flex-shrink: 0; }
 .logo.escuro { display: none; }
 html.dark .logo.claro { display: none; }
 html.dark .logo.escuro { display: block; }
