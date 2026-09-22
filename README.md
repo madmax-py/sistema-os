@@ -24,8 +24,9 @@ Abra http://localhost:5173.
 
 Veja `.env.example`. Depois de mudar o `.env`, reinicie o `npm run dev`.
 
-Sem domínio fixo, por segurança a função `api/progete.ts` só aceita
-`https://*.progete.com.br` (porta padrão) e os hosts listados em `PROGETE_HOSTS`.
+Sem domínio fixo, por segurança a função `api/progete.ts` só aceita, via https
+e porta padrão, os domínios `progete.com.br`, `profinancas.com.br` e `progete.com`
+(e seus subdomínios), além dos hosts listados em `PROGETE_HOSTS`.
 
 ## Como funciona
 

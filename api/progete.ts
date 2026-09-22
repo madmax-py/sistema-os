@@ -13,7 +13,7 @@
 //
 // Com PROGETE_URL definida, o domínio é fixo: o "base" do navegador é
 // ignorado e o app pula a tela de conexão. Sem ela, só aceita domínios
-// permitidos (*.progete.com.br + env PROGETE_HOSTS). Em todos os casos só
+// permitidos (DOMINIOS_PERMITIDOS + env PROGETE_HOSTS). Em todos os casos só
 // as rotas da lista ROTAS — não é um proxy aberto.
 // Em desenvolvimento, o vite.config.ts serve esta mesma função.
 // =========================================================================
@@ -30,9 +30,12 @@ function dominioFixo(): string | null {
   }
 }
 
+/** Domínios da marca aceitos na tela de conexão (o próprio domínio e qualquer subdomínio, só https) */
+const DOMINIOS_PERMITIDOS = ["progete.com.br", "profinancas.com.br", "progete.com"];
+
 /**
  * Hosts extras permitidos, separados por vírgula (ex.: "192.168.1.6:3000").
- * Esses aceitam http; os *.progete.com.br só https.
+ * Esses aceitam http; os de DOMINIOS_PERMITIDOS só https.
  */
 const HOSTS_EXTRAS = (process.env.PROGETE_HOSTS ?? "")
   .split(",")
@@ -67,8 +70,9 @@ function origemPermitida(base: string): string | null {
   }
   if (url.username || url.password) return null;
   const host = url.host.toLowerCase(); // inclui porta
-  const progete = url.hostname === "progete.com.br" || url.hostname.endsWith(".progete.com.br");
-  if (progete && url.protocol === "https:" && !url.port) return url.origin;
+  const hostname = url.hostname.toLowerCase();
+  const daMarca = DOMINIOS_PERMITIDOS.some((d) => hostname === d || hostname.endsWith(`.${d}`));
+  if (daMarca && url.protocol === "https:" && !url.port) return url.origin;
   if (HOSTS_EXTRAS.includes(host) && (url.protocol === "https:" || url.protocol === "http:")) return url.origin;
   return null;
 }
@@ -89,7 +93,7 @@ export async function POST(request: Request): Promise<Response> {
   const origem = dominioFixo() ?? origemPermitida(String(req.base ?? ""));
   if (!origem) {
     return json(403, {
-      erro: "Domínio não permitido. Use um endereço https://*.progete.com.br.",
+      erro: "Domínio não permitido. Use um endereço https de progete.com.br, profinancas.com.br ou progete.com.",
       codigo: "dominio_nao_permitido",
     });
   }

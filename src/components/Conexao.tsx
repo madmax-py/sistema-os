@@ -82,7 +82,8 @@ export function Conexao({ onConectado }: { onConectado: (origem: string) => void
           )}
 
           <p className="nota">
-            <IconeAlerta width={14} height={14} /> Aceitos: endereços <code>*.progete.com.br</code> (https).
+            <IconeAlerta width={14} height={14} /> Aceitos (https): <code>*.progete.com.br</code>, <code>*.profinancas.com.br</code>{" "}
+            e <code>*.progete.com</code>.
           </p>
         </form>
         <p className="login-rodape">ProFinanças · Sistema O.S. © {new Date().getFullYear()}</p>
