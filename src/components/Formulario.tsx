@@ -10,7 +10,18 @@ import {
 import { hoje, hora, mensagensValidacao } from "../formato";
 import { Abas, type AbaOS } from "./Abas";
 import { Secao } from "./Detalhe";
-import { IconeCaixa, IconeCalendario, IconeChave, IconeDocumento, IconeFabrica, IconeLixeira, IconeMais } from "./Icones";
+import { Cartoes } from "./Cartoes";
+import {
+  IconeAlerta,
+  IconeCaixa,
+  IconeCalendario,
+  IconeChave,
+  IconeDocumento,
+  IconeFabrica,
+  IconeLixeira,
+  IconeMais,
+  IconeSeta,
+} from "./Icones";
 
 interface ItemForm {
   key: string;
@@ -365,12 +376,6 @@ export function Formulario({
             <Campo rotulo="Tipo" obrigatorio>
               <Select value={cab.tipo} onChange={(v) => set("tipo", v)} opcoes={opc(catalogos.tipos)} obrigatorio />
             </Campo>
-            <Campo rotulo="Prioridade" obrigatorio>
-              <Select value={cab.prioridade} onChange={(v) => set("prioridade", v)} opcoes={opc(catalogos.prioridades)} obrigatorio />
-            </Campo>
-            <Campo rotulo="Fluxo" obrigatorio>
-              <Select value={cab.fluxo} onChange={(v) => set("fluxo", v)} opcoes={opc(catalogos.fluxos)} obrigatorio />
-            </Campo>
             <Campo rotulo="Área" obrigatorio>
               <Select value={cab.area} onChange={(v) => set("area", v)} opcoes={opc(catalogos.areas)} obrigatorio />
             </Campo>
@@ -378,6 +383,28 @@ export function Formulario({
               <Select value={cab.outro} onChange={(v) => set("outro", v)} opcoes={opc(catalogos.outros)} obrigatorio />
             </Campo>
           </div>
+        </Secao>
+
+        <Secao icone={<IconeAlerta width={18} height={18} />} cor="rosa" titulo="Nível de prioridade">
+          <Cartoes
+            tipo="prioridade"
+            rotulo="Nível de prioridade"
+            opcoes={catalogos.prioridades}
+            valor={cab.prioridade}
+            onChange={(v) => set("prioridade", v)}
+            obrigatorio
+          />
+        </Secao>
+
+        <Secao icone={<IconeSeta width={18} height={18} />} cor="azul" titulo="Fluxo">
+          <Cartoes
+            tipo="fluxo"
+            rotulo="Fluxo"
+            opcoes={catalogos.fluxos}
+            valor={cab.fluxo}
+            onChange={(v) => set("fluxo", v)}
+            obrigatorio
+          />
         </Secao>
 
         <Secao icone={<IconeCalendario width={18} height={18} />} cor="violeta" titulo="Solicitação e datas">

@@ -122,3 +122,33 @@ export const IconeGlobo = (p: P) => (
     <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
   </svg>
 );
+export const IconeChama = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M12 2c.8 3.2 2.2 5 3.8 7 1.5 1.8 2.2 3.8 2.2 6a6 6 0 0 1-12 0c0-2.5 1.2-4.8 2.8-7 1.2 1.8 2.2 2.2 2.7 1.2C12.2 7.8 11.8 4.8 12 2z" />
+    <path d="M12 12.5c.8 1.5 1.8 2.6 1.8 4a1.8 1.8 0 0 1-3.6 0c0-1.4 1-2.5 1.8-4z" />
+  </svg>
+);
+export const IconeRaio = (p: P) => (
+  <svg {...base(p)}><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z" /></svg>
+);
+export const IconeFolha = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M20 4c-9 0-16 5-16 14 9 0 14-5 16-14z" />
+    <path d="M4 20c3-3 7-8 12-13" />
+  </svg>
+);
+export const IconeRelogio = (p: P) => (
+  <svg {...base(p)}>
+    <circle cx="12" cy="12" r="10" />
+    <path d="M12 6v6l4 2" />
+  </svg>
+);
+export const IconeCheck = (p: P) => (
+  <svg {...base(p)}><path d="M20 6 9 17l-5-5" /></svg>
+);
+export const IconeX = (p: P) => (
+  <svg {...base(p)}><path d="M18 6 6 18M6 6l12 12" /></svg>
+);
+export const IconeSeta = (p: P) => (
+  <svg {...base(p)}><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+);
