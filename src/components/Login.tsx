@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { entrar, type Sessao } from "../api";
 import { IconeCadeado } from "./Icones";
+import { Logo } from "./Logo";
 
 export function Login({
   dominio,
@@ -39,6 +40,7 @@ export function Login({
       <div className="login-conteudo fade-up">
         <form className="login-card" onSubmit={enviar}>
           <div className="login-topo">
+            <Logo className="login-logo" />
             <div className="login-icone">
               <IconeCadeado width={32} height={32} />
             </div>
@@ -86,7 +88,7 @@ export function Login({
             {enviando ? "Entrando…" : "Entrar"}
           </button>
         </form>
-        <p className="login-rodape">Sistema O.S. © {new Date().getFullYear()} · Integrado à Progete</p>
+        <p className="login-rodape">ProFinanças · Sistema O.S. © {new Date().getFullYear()}</p>
       </div>
     </div>
   );

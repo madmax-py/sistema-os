@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { getDominio, normalizarDominio, verificarDominio, type ResultadoVerificacao } from "../api";
 import { IconeAlerta, IconeGlobo } from "./Icones";
+import { Logo } from "./Logo";
 
 /** Etapa 1: escolher o domínio da API e confirmar que ela responde. */
 export function Conexao({ onConectado }: { onConectado: (origem: string) => void }) {
@@ -28,6 +29,7 @@ export function Conexao({ onConectado }: { onConectado: (origem: string) => void
       <div className="login-conteudo fade-up">
         <form className="login-card" onSubmit={verificar}>
           <div className="login-topo">
+            <Logo className="login-logo" />
             <div className="login-icone">
               <IconeGlobo width={32} height={32} />
             </div>
@@ -83,7 +85,7 @@ export function Conexao({ onConectado }: { onConectado: (origem: string) => void
             <IconeAlerta width={14} height={14} /> Aceitos: endereços <code>*.progete.com.br</code> (https).
           </p>
         </form>
-        <p className="login-rodape">Sistema O.S. © {new Date().getFullYear()} · Integrado à Progete</p>
+        <p className="login-rodape">ProFinanças · Sistema O.S. © {new Date().getFullYear()}</p>
       </div>
     </div>
   );

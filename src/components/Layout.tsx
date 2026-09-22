@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import type { Sessao } from "../api";
+import { Logo } from "./Logo";
 import { IconeGrafico, IconeLista, IconeLua, IconeMais, IconeMenu, IconeSair, IconeSol } from "./Icones";
 
 export type Pagina = "lista" | "nova" | "painel";
@@ -51,7 +52,10 @@ export function Layout({
 
       <aside className={`menu${menuAberto ? " aberto" : ""}`} aria-hidden={!menuAberto}>
         <div className="menu-cabecalho">
-          <div className="nome-app">Sistema O.S.</div>
+          <div className="nome-app">
+            <Logo />
+            <small>Sistema O.S.</small>
+          </div>
           <div className="online" title={sessao.dominio}>
             {sessao.dominio.replace(/^https?:\/\//, "")}
           </div>
@@ -91,7 +95,7 @@ export function Layout({
             </span>
             Sair do Sistema
           </button>
-          <small>Sistema O.S. © {new Date().getFullYear()} · Progete</small>
+          <small>ProFinanças · Sistema O.S. © {new Date().getFullYear()}</small>
         </div>
       </aside>
 
@@ -100,7 +104,7 @@ export function Layout({
           <IconeMenu width={20} height={20} />
         </button>
         <div className="topo-titulo">
-          <b>Progete</b>
+          <Logo />
           <span className="divisor" />
           Sistema O.S.
         </div>

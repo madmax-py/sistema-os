@@ -3,8 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#2563eb" />
-    <title>Ordens de Serviço · Progete</title>
+    <meta name="theme-color" content="#00afef" />
+    <link rel="icon" href="/favicon.ico" />
+    <title>Sistema O.S. · ProFinanças</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -12,13 +13,10 @@
       rel="stylesheet"
     />
     <script>
-      // Aplica o tema salvo antes de renderizar (evita "piscar" claro)
-      try {
-        var t = localStorage.getItem("theme");
-        if (t === "dark" || (!t && matchMedia("(prefers-color-scheme: dark)").matches)) {
-          document.documentElement.classList.add("dark");
-        }
-      } catch (e) {}
+      // Tema escuro por padrão (estilo ProFinanças); o claro só se o usuário escolher
+      var claro = false;
+      try { claro = localStorage.getItem("theme") === "light"; } catch (e) {}
+      if (!claro) document.documentElement.classList.add("dark");
     </script>
   </head>
   <body>
