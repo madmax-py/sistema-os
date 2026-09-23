@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { listarManutencoes, type Manutencao } from "../api";
+import { listarManutencoes, type Catalogos, type Manutencao } from "../api";
+import { exportarXlsx, imprimirLista } from "../exportar";
 import { data, hoje } from "../formato";
-import { IconeAtualizar, IconeBusca, IconeChave, IconeMais } from "./Icones";
+import { IconeAtualizar, IconeBusca, IconeChave, IconeMais, IconePdf, IconePlanilha } from "./Icones";
 
 export function Lista({
+  catalogos,
   onAbrir,
   onNova,
 }: {
+  catalogos: Catalogos;
   onAbrir: (id: number) => void;
   onNova: () => void;
 }) {
@@ -91,6 +94,20 @@ export function Lista({
         <div className="acoes">
           <button onClick={carregar}>
             <IconeAtualizar width={16} height={16} /> Atualizar
+          </button>
+          <button
+            onClick={() => filtrada && imprimirLista(filtrada, catalogos, busca.trim() ? `filtro: "${busca.trim()}"` : undefined)}
+            disabled={!filtrada?.length}
+            title="Gerar PDF da lista (imprimir ou salvar como PDF)"
+          >
+            <IconePdf width={16} height={16} /> PDF
+          </button>
+          <button
+            onClick={() => filtrada && exportarXlsx(filtrada, catalogos)}
+            disabled={!filtrada?.length}
+            title="Baixar planilha .xlsx com O.S., materiais e serviços"
+          >
+            <IconePlanilha width={16} height={16} /> Excel
           </button>
           <button className="primario" onClick={onNova}>
             <IconeMais width={16} height={16} /> Nova O.S.

@@ -111,7 +111,11 @@ export function App() {
             <Dashboard catalogos={catalogos} onAbrir={(id) => setTela({ nome: "detalhe", id })} />
           )}
           {tela.nome === "lista" && (
-            <Lista onAbrir={(id) => setTela({ nome: "detalhe", id })} onNova={() => setTela({ nome: "form", id: null })} />
+            <Lista
+              catalogos={catalogos}
+              onAbrir={(id) => setTela({ nome: "detalhe", id })}
+              onNova={() => setTela({ nome: "form", id: null })}
+            />
           )}
           {tela.nome === "detalhe" && (
             <Detalhe

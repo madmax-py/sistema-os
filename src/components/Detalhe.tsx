@@ -1,8 +1,9 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { lerManutencao, type Catalogos, type Manutencao } from "../api";
+import { imprimirOS } from "../exportar";
 import { data, hora, moeda } from "../formato";
 import { Abas, type AbaOS } from "./Abas";
-import { IconeCaixa, IconeCalendario, IconeChave, IconeDocumento, IconeEditar, IconeFabrica, IconeVoltar } from "./Icones";
+import { IconeCaixa, IconeCalendario, IconeChave, IconeDocumento, IconeEditar, IconeFabrica, IconePdf, IconeVoltar } from "./Icones";
 
 function Info({ rotulo, valor, largo }: { rotulo: string; valor: ReactNode; largo?: boolean }) {
   return (
@@ -75,6 +76,9 @@ export function Detalhe({
         <div className="acoes">
           <button onClick={onVoltar}>
             <IconeVoltar width={16} height={16} /> Voltar
+          </button>
+          <button onClick={() => imprimirOS(m, catalogos)} title="Gerar PDF desta O.S.">
+            <IconePdf width={16} height={16} /> PDF
           </button>
           <button className="primario" onClick={onEditar}>
             <IconeEditar width={16} height={16} /> Editar
