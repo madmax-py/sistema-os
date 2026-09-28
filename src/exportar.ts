@@ -9,13 +9,19 @@ const custoMateriais = (m: Manutencao) =>
 const custoServicos = (m: Manutencao) =>
   (m.manutencao_servicos ?? []).reduce((s, x) => s + (x.vlcusto ?? 0), 0);
 
-const horasServico = (s: { dt_inicio: string; hr_inicio: string | null; dt_termino: string; hr_termino: string | null }) => {
+/** Horas entre início e término (0 se faltar horário ou término < início) */
+const horasIntervalo = (s: { dt_inicio: string | null; hr_inicio: string | null; dt_termino: string | null; hr_termino: string | null }) => {
   const hi = hora(s.hr_inicio);
   const ht = hora(s.hr_termino);
   if (!s.dt_inicio || !s.dt_termino || !hi || !ht) return 0;
   const h = (Date.parse(`${s.dt_termino}T${ht}`) - Date.parse(`${s.dt_inicio}T${hi}`)) / 3_600_000;
   return h > 0 ? h : 0;
 };
+const horasServico = horasIntervalo;
+/** Horas locais: execução interna da própria O.S. */
+const horasLocais = (m: Manutencao) => horasIntervalo(m);
+/** Horas de terceiros: soma dos serviços */
+const horasTerceiros = (m: Manutencao) => (m.manutencao_servicos ?? []).reduce((s, x) => s + horasServico(x), 0);
 
 const arredondar = (v: number) => Math.round(v * 100) / 100;
 
@@ -48,12 +54,12 @@ export function planilhasDasOS(lista: Manutencao[], c: Catalogos): Planilha[] {
       "Nº", "Programada", "Finalizada", "Equipamento", "Código", "Localização", "Tipo", "Prioridade",
       "Fluxo", "Área", "Outro", "Solicitante", "Descrição do defeito", "Informações adicionais",
       "Ficha de produção", "Recorrente", "Mantenedor", "Início", "Hora início", "Término", "Hora término",
-      "Descrição da atividade", "Materiais", "Custo materiais (R$)", "Serviços", "Horas",
-      "Custo serviços (R$)", "Custo total (R$)", "Criada em",
+      "Descrição da atividade", "Horas locais", "Materiais", "Custo materiais (R$)", "Serviços de terceiros",
+      "Horas terceiros", "Custo terceiros (R$)", "Horas totais", "Custo total (R$)", "Criada em",
     ],
   ];
   const materiais: Celula[][] = [["O.S.", "Equipamento", "Material", "Unidade", "Data", "Qtde", "Preço unit. (R$)", "Total (R$)", "Nº doc"]];
-  const servicos: Celula[][] = [["O.S.", "Equipamento", "Mantenedor", "Início", "Hora início", "Término", "Hora término", "Horas", "Custo (R$)", "Atividade", "Nº doc"]];
+  const servicos: Celula[][] = [["O.S.", "Equipamento", "Mantenedor terceiro", "Início", "Hora início", "Término", "Hora término", "Horas", "Custo (R$)", "Atividade", "Nº doc"]];
 
   for (const m of [...lista].sort((a, b) => a.id - b.id)) {
     const n = nomes(m, c);
@@ -61,14 +67,15 @@ export function planilhasDasOS(lista: Manutencao[], c: Catalogos): Planilha[] {
     const servs = m.manutencao_servicos ?? [];
     const cm = custoMateriais(m);
     const cs = custoServicos(m);
-    const horas = servs.reduce((s, x) => s + horasServico(x), 0);
+    const hl = horasLocais(m);
+    const ht = horasTerceiros(m);
 
     os.push([
       m.id, data(m.dt_programada), data(m.dt_finalizada), n.equipamento, n.codigo, n.localizacao, n.tipo,
       n.prioridade, n.fluxo, n.area, n.outro, m.solicitante ?? "", m.descricao_defeito ?? "", m.infad ?? "",
       m.cod_ficha_producao ?? "", m.recorrente ? "Sim" : "Não", n.executor, data(m.dt_inicio), hora(m.hr_inicio),
-      data(m.dt_termino), hora(m.hr_termino), m.desc_atividade ?? "", itens.length, arredondar(cm), servs.length,
-      arredondar(horas), arredondar(cs), arredondar(cm + cs),
+      data(m.dt_termino), hora(m.hr_termino), m.desc_atividade ?? "", arredondar(hl), itens.length, arredondar(cm),
+      servs.length, arredondar(ht), arredondar(cs), arredondar(hl + ht), arredondar(cm + cs),
       m.created_at ? `${data(m.created_at.slice(0, 10))} ${m.created_at.slice(11, 16)}` : "",
     ]);
 
@@ -143,6 +150,8 @@ const ESTILO = `
   footer { margin-top: 18px; font-size: 8.5px; color: #8a969c; text-align: center; }
   tr, .campo { break-inside: avoid; }
   thead { display: table-header-group; }
+  table.compacta { font-size: 9.5px; }
+  table.compacta th, table.compacta td { padding: 4px 4px; }
 `;
 
 /** Documento completo pronto para impressão (separado para poder ser inspecionado/testado) */
@@ -191,7 +200,8 @@ export function htmlDaOS(m: Manutencao, c: Catalogos): string {
   const servs = m.manutencao_servicos ?? [];
   const cm = custoMateriais(m);
   const cs = custoServicos(m);
-  const horas = servs.reduce((s, x) => s + horasServico(x), 0);
+  const hl = horasLocais(m);
+  const ht = horasTerceiros(m);
 
   const tabelaMateriais = itens.length
     ? `<table><thead><tr><th>Material</th><th>Data</th><th class="num">Qtde</th><th class="num">Preço unit.</th><th class="num">Total</th><th>Nº doc</th></tr></thead><tbody>${itens
@@ -204,13 +214,13 @@ export function htmlDaOS(m: Manutencao, c: Catalogos): string {
     : `<p>Nenhum material registrado.</p>`;
 
   const tabelaServicos = servs.length
-    ? `<table><thead><tr><th>Mantenedor</th><th>Início</th><th>Término</th><th class="num">Horas</th><th>Atividade</th><th class="num">Custo</th></tr></thead><tbody>${servs
+    ? `<table><thead><tr><th>Mantenedor terceiro</th><th>Início</th><th>Término</th><th class="num">Horas</th><th>Atividade</th><th class="num">Custo</th></tr></thead><tbody>${servs
         .map(
           (s) =>
             `<tr><td>${esc(c.mantenedores.find((x) => x.id === s.manutencao_mantenedor_id)?.nome ?? `#${s.manutencao_mantenedor_id}`)}</td><td>${data(s.dt_inicio)} ${hora(s.hr_inicio)}</td><td>${data(s.dt_termino)} ${hora(s.hr_termino)}</td><td class="num">${horasBR(horasServico(s))}</td><td>${esc(s.desc_atividade)}</td><td class="num">${moedaBR(s.vlcusto ?? 0)}</td></tr>`
         )
-        .join("")}</tbody><tfoot><tr><td colspan="3">Total de serviços</td><td class="num">${horasBR(horas)}</td><td></td><td class="num">${moedaBR(cs)}</td></tr></tfoot></table>`
-    : `<p>Nenhum serviço registrado.</p>`;
+        .join("")}</tbody><tfoot><tr><td colspan="3">Total de serviços</td><td class="num">${horasBR(ht)}</td><td></td><td class="num">${moedaBR(cs)}</td></tr></tfoot></table>`
+    : `<p>Nenhum serviço de terceiros registrado.</p>`;
 
   return documento(
     `O.S. ${m.id}`,
@@ -237,6 +247,7 @@ export function htmlDaOS(m: Manutencao, c: Catalogos): string {
       ${campo("Mantenedor", n.executor)}
       ${campo("Início", m.dt_inicio ? `${data(m.dt_inicio)} ${hora(m.hr_inicio)}` : "")}
       ${campo("Término", m.dt_termino ? `${data(m.dt_termino)} ${hora(m.hr_termino)}` : "")}
+      ${campo("Horas", hl ? horasBR(hl) : "")}
       ${campo("Descrição da atividade", m.desc_atividade, true)}
     </div>
     <h2>Materiais</h2>${tabelaMateriais}
@@ -244,11 +255,12 @@ export function htmlDaOS(m: Manutencao, c: Catalogos): string {
     <div class="totais">
       <div class="total"><span>Materiais</span><b>${moedaBR(cm)}</b></div>
       <div class="total"><span>Serviços de terceiros</span><b>${moedaBR(cs)}</b></div>
-      <div class="total"><span>Horas trabalhadas</span><b>${horasBR(horas)}</b></div>
+      <div class="total"><span>Horas locais</span><b>${horasBR(hl)}</b></div>
+      <div class="total"><span>Horas de terceiros</span><b>${horasBR(ht)}</b></div>
       <div class="total"><span>Custo total</span><b>${moedaBR(cm + cs)}</b></div>
     </div>
     <div class="assinaturas">
-      <div class="assinatura">Responsável pela manutenção</div>
+      <div class="assinatura">Responsável pela manutenção${n.executor ? `<br>${esc(n.executor)}` : ""}</div>
       <div class="assinatura">Solicitante</div>
     </div>
     ${rodape()}`
@@ -262,12 +274,14 @@ export const imprimirOS = (m: Manutencao, c: Catalogos) => imprimir(htmlDaOS(m, 
 export function htmlDaLista(lista: Manutencao[], c: Catalogos, descricaoFiltro?: string): string {
   const ordenada = [...lista].sort((a, b) => b.id - a.id);
   const totalGeral = ordenada.reduce((s, m) => s + custoMateriais(m) + custoServicos(m), 0);
+  const totalLocais = ordenada.reduce((s, m) => s + horasLocais(m), 0);
+  const totalTerceiros = ordenada.reduce((s, m) => s + horasTerceiros(m), 0);
 
   const linhas = ordenada
     .map((m) => {
       const n = nomes(m, c);
       const total = custoMateriais(m) + custoServicos(m);
-      return `<tr><td class="num">${m.id}</td><td>${data(m.dt_programada)}</td><td>${esc([n.equipamento, n.codigo].filter(Boolean).join(" · "))}</td><td>${esc(n.tipo)}</td><td>${esc(n.prioridade)}</td><td>${esc(n.fluxo)}</td><td>${esc(m.solicitante)}</td><td class="num">${moedaBR(total)}</td></tr>`;
+      return `<tr><td class="num">${m.id}</td><td>${data(m.dt_programada)}</td><td>${esc([n.equipamento, n.codigo].filter(Boolean).join(" · "))}</td><td>${esc(n.tipo)}</td><td>${esc(n.prioridade)}</td><td>${esc(n.fluxo)}</td><td>${esc(m.solicitante)}</td><td>${esc(n.executor)}</td><td class="num">${horasBR(horasLocais(m))}</td><td class="num">${horasBR(horasTerceiros(m))}</td><td class="num">${moedaBR(total)}</td></tr>`;
     })
     .join("");
 
@@ -277,7 +291,7 @@ export function htmlDaLista(lista: Manutencao[], c: Catalogos, descricaoFiltro?:
     <h2>Lista</h2>
     ${
       ordenada.length
-        ? `<table><thead><tr><th class="num">Nº</th><th>Programada</th><th>Equipamento</th><th>Tipo</th><th>Prioridade</th><th>Fluxo</th><th>Solicitante</th><th class="num">Custo</th></tr></thead><tbody>${linhas}</tbody><tfoot><tr><td colspan="7">Total (${ordenada.length} O.S.)</td><td class="num">${moedaBR(totalGeral)}</td></tr></tfoot></table>`
+        ? `<table class="compacta"><thead><tr><th class="num">Nº</th><th>Programada</th><th>Equipamento</th><th>Tipo</th><th>Prioridade</th><th>Fluxo</th><th>Solicitante</th><th>Mantenedor</th><th class="num">H. locais</th><th class="num">H. terceiros</th><th class="num">Custo</th></tr></thead><tbody>${linhas}</tbody><tfoot><tr><td colspan="8">Total (${ordenada.length} O.S.)</td><td class="num">${horasBR(totalLocais)}</td><td class="num">${horasBR(totalTerceiros)}</td><td class="num">${moedaBR(totalGeral)}</td></tr></tfoot></table>`
         : "<p>Nenhuma O.S. para listar.</p>"
     }
     ${rodape()}`

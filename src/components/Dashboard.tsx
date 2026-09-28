@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { listarManutencoes, type Catalogos, type Manutencao } from "../api";
-import { calcular, type Contagem, type Filtro, type Periodo } from "../dashboard";
+import {
+  calcular,
+  FILTRO_VAZIO,
+  SEM_USUARIO,
+  usuariosDasOS,
+  type Contagem,
+  type Filtro,
+  type Periodo,
+} from "../dashboard";
 import { data, moeda } from "../formato";
 import { Secao } from "./Detalhe";
 import {
@@ -225,7 +233,7 @@ function Divisao({ partes, formato, sufixo, vazio }: {
 export function Dashboard({ catalogos, onAbrir }: { catalogos: Catalogos; onAbrir: (id: number) => void }) {
   const [lista, setLista] = useState<Manutencao[] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
-  const [filtro, setFiltro] = useState<Filtro>({ periodo: "todos", tipoId: "", equipamentoId: "" });
+  const [filtro, setFiltro] = useState<Filtro>(FILTRO_VAZIO);
   const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
 
   const carregar = () => {
@@ -239,12 +247,13 @@ export function Dashboard({ catalogos, onAbrir }: { catalogos: Catalogos; onAbri
   };
   useEffect(carregar, []);
 
+  const usuarios = useMemo(() => usuariosDasOS(lista ?? [], catalogos), [lista, catalogos]);
   const ind = useMemo(() => (lista ? calcular(lista, catalogos, filtro) : null), [lista, catalogos, filtro]);
 
   if (erro) return <div className="erro-caixa">{erro}</div>;
   if (!ind) return <p className="muted">Calculando indicadores…</p>;
 
-  const filtrado = filtro.periodo !== "todos" || filtro.tipoId || filtro.equipamentoId;
+  const filtrado = filtro.periodo !== "todos" || filtro.tipoId || filtro.equipamentoId || filtro.usuarioId;
   const variacao = ind.mesAtual - ind.mesAnterior;
   const problemas = ind.qualidade.reduce((s, q) => s + q.valor, 0);
   const maxHorasMant = Math.max(...ind.mantenedores.map((m) => m.horas), 0) || 1;
@@ -317,9 +326,21 @@ export function Dashboard({ catalogos, onAbrir }: { catalogos: Catalogos; onAbri
             ))}
           </select>
         </label>
+        <label>
+          <span>Mantenedor interno</span>
+          <select value={filtro.usuarioId} onChange={(e) => setFiltro({ ...filtro, usuarioId: e.target.value })}>
+            <option value="">Todos os mantenedores</option>
+            <option value={SEM_USUARIO}>Sem mantenedor interno</option>
+            {usuarios.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.rotulo}
+              </option>
+            ))}
+          </select>
+        </label>
         <div className="filtros-acoes">
           {filtrado && (
-            <button type="button" onClick={() => setFiltro({ periodo: "todos", tipoId: "", equipamentoId: "" })}>
+            <button type="button" onClick={() => setFiltro(FILTRO_VAZIO)}>
               Limpar
             </button>
           )}

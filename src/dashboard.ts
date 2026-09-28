@@ -11,7 +11,12 @@ export interface Filtro {
   periodo: Periodo;
   tipoId: string;
   equipamentoId: string;
+  /** mantenedor interno (empresa_usuario_id); SEM_USUARIO = O.S. sem mantenedor interno */
+  usuarioId: string;
 }
+
+export const SEM_USUARIO = "sem";
+export const FILTRO_VAZIO: Filtro = { periodo: "todos", tipoId: "", equipamentoId: "", usuarioId: "" };
 
 export interface Contagem {
   rotulo: string;
@@ -127,6 +132,17 @@ function horasEntre(x: IntervaloHoras): number | null {
 /** Horas de um serviço de terceiros */
 export const horasServico = (s: ManutencaoServico) => horasEntre(s);
 
+/** Usuários internos para o filtro: o cadastro + os que aparecem nas O.S. (caso a rota não traga todos) */
+export function usuariosDasOS(lista: Manutencao[], catalogos: Catalogos): { id: number; rotulo: string }[] {
+  const mapa = new Map<number, string>();
+  for (const u of catalogos.usuarios) mapa.set(u.id, nomeUsuario(u));
+  for (const m of lista) {
+    const id = m.empresa_usuario_id;
+    if (id && !mapa.has(id)) mapa.set(id, nomeUsuario(m.empresa_usuario, id));
+  }
+  return [...mapa.entries()].map(([id, rotulo]) => ({ id, rotulo })).sort((a, b) => a.rotulo.localeCompare(b.rotulo));
+}
+
 /** Horas da execução interna da O.S. */
 export const horasExecucao = (m: Manutencao) => horasEntre(m);
 
@@ -155,7 +171,9 @@ export function filtrar(lista: Manutencao[], f: Filtro): Manutencao[] {
     (m) =>
       (!inicio || (m.dt_programada ?? "") >= inicio) &&
       (!f.tipoId || String(m.manutencao_tipo_id) === f.tipoId) &&
-      (!f.equipamentoId || String(m.manutencao_equipamento_id) === f.equipamentoId)
+      (!f.equipamentoId || String(m.manutencao_equipamento_id) === f.equipamentoId) &&
+      (!f.usuarioId ||
+        (f.usuarioId === SEM_USUARIO ? !m.empresa_usuario_id : String(m.empresa_usuario_id) === f.usuarioId))
   );
 }
 
