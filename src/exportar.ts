@@ -1,6 +1,6 @@
 // Exportação das O.S.: planilha (.xlsx) e PDF (via impressão do navegador).
 // Tudo é montado no próprio app — a API da Progete não gera esses arquivos.
-import type { Catalogos, Manutencao } from "./api";
+import { nomeUsuario, type Catalogos, type Manutencao } from "./api";
 import { data, hora, hoje } from "./formato";
 import { baixar, gerarXlsx, type Celula, type Planilha } from "./xlsx";
 
@@ -32,6 +32,9 @@ function nomes(m: Manutencao, c: Catalogos) {
     fluxo: desc(c.fluxos, m.manutencao_fluxo_id, m.manutencao_fluxo),
     area: desc(c.areas, m.manutencao_area_id, m.manutencao_area),
     outro: desc(c.outros, m.manutencao_outro_id, m.manutencao_outro),
+    executor: m.empresa_usuario_id
+      ? nomeUsuario(m.empresa_usuario ?? c.usuarios.find((u) => u.id === m.empresa_usuario_id), m.empresa_usuario_id)
+      : "",
   };
 }
 
@@ -44,7 +47,8 @@ export function planilhasDasOS(lista: Manutencao[], c: Catalogos): Planilha[] {
     [
       "Nº", "Programada", "Finalizada", "Equipamento", "Código", "Localização", "Tipo", "Prioridade",
       "Fluxo", "Área", "Outro", "Solicitante", "Descrição do defeito", "Informações adicionais",
-      "Ficha de produção", "Recorrente", "Materiais", "Custo materiais (R$)", "Serviços", "Horas",
+      "Ficha de produção", "Recorrente", "Mantenedor", "Início", "Hora início", "Término", "Hora término",
+      "Descrição da atividade", "Materiais", "Custo materiais (R$)", "Serviços", "Horas",
       "Custo serviços (R$)", "Custo total (R$)", "Criada em",
     ],
   ];
@@ -62,7 +66,8 @@ export function planilhasDasOS(lista: Manutencao[], c: Catalogos): Planilha[] {
     os.push([
       m.id, data(m.dt_programada), data(m.dt_finalizada), n.equipamento, n.codigo, n.localizacao, n.tipo,
       n.prioridade, n.fluxo, n.area, n.outro, m.solicitante ?? "", m.descricao_defeito ?? "", m.infad ?? "",
-      m.cod_ficha_producao ?? "", m.recorrente ? "Sim" : "Não", itens.length, arredondar(cm), servs.length,
+      m.cod_ficha_producao ?? "", m.recorrente ? "Sim" : "Não", n.executor, data(m.dt_inicio), hora(m.hr_inicio),
+      data(m.dt_termino), hora(m.hr_termino), m.desc_atividade ?? "", itens.length, arredondar(cm), servs.length,
       arredondar(horas), arredondar(cs), arredondar(cm + cs),
       m.created_at ? `${data(m.created_at.slice(0, 10))} ${m.created_at.slice(11, 16)}` : "",
     ]);
@@ -88,7 +93,7 @@ export function planilhasDasOS(lista: Manutencao[], c: Catalogos): Planilha[] {
   return [
     { nome: "Ordens de Serviço", linhas: os },
     { nome: "Materiais", linhas: materiais },
-    { nome: "Serviços", linhas: servicos },
+    { nome: "Serviços de terceiros", linhas: servicos },
   ];
 }
 
@@ -227,11 +232,18 @@ export function htmlDaOS(m: Manutencao, c: Catalogos): string {
       ${campo("Descrição do defeito", m.descricao_defeito, true)}
       ${campo("Informações adicionais", m.infad, true)}
     </div>
+    <h2>Execução</h2>
+    <div class="grade">
+      ${campo("Mantenedor", n.executor)}
+      ${campo("Início", m.dt_inicio ? `${data(m.dt_inicio)} ${hora(m.hr_inicio)}` : "")}
+      ${campo("Término", m.dt_termino ? `${data(m.dt_termino)} ${hora(m.hr_termino)}` : "")}
+      ${campo("Descrição da atividade", m.desc_atividade, true)}
+    </div>
     <h2>Materiais</h2>${tabelaMateriais}
-    <h2>Serviços</h2>${tabelaServicos}
+    <h2>Serviços de terceiros</h2>${tabelaServicos}
     <div class="totais">
       <div class="total"><span>Materiais</span><b>${moedaBR(cm)}</b></div>
-      <div class="total"><span>Serviços</span><b>${moedaBR(cs)}</b></div>
+      <div class="total"><span>Serviços de terceiros</span><b>${moedaBR(cs)}</b></div>
       <div class="total"><span>Horas trabalhadas</span><b>${horasBR(horas)}</b></div>
       <div class="total"><span>Custo total</span><b>${moedaBR(cm + cs)}</b></div>
     </div>

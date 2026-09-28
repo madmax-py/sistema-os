@@ -51,6 +51,7 @@ const ROTAS: Array<[RegExp, string[]]> = [
   [/^manutencaos\/\d+$/, ["GET", "PATCH"]],
   [new RegExp(`^manutencaos/(${CATALOGOS})$`), ["GET"]],
   [/^produto_unidade_medidas$/, ["GET"]],
+  [/^(manutencaos\/)?empresa_usuarios$/, ["GET"]],
 ];
 
 function json(status: number, body: unknown): Response {

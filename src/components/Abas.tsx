@@ -18,7 +18,7 @@ export function Abas({
   const abas: { id: AbaOS; rotulo: string; cor: string; icone: ReactNode; contador?: number }[] = [
     { id: "dados", rotulo: "Dados gerais", cor: "azul", icone: <IconeDocumento width={16} height={16} /> },
     { id: "materiais", rotulo: "Materiais", cor: "ambar", icone: <IconeCaixa width={16} height={16} />, contador: materiais },
-    { id: "servicos", rotulo: "Serviços", cor: "verde", icone: <IconeChave width={16} height={16} />, contador: servicos },
+    { id: "servicos", rotulo: "Serviços de terceiros", cor: "verde", icone: <IconeChave width={16} height={16} />, contador: servicos },
   ];
   return (
     <div className="abas" role="tablist">

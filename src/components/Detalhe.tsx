@@ -1,9 +1,9 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { lerManutencao, type Catalogos, type Manutencao } from "../api";
+import { lerManutencao, nomeUsuario, type Catalogos, type Manutencao } from "../api";
 import { imprimirOS } from "../exportar";
 import { data, hora, moeda } from "../formato";
 import { Abas, type AbaOS } from "./Abas";
-import { IconeCaixa, IconeCalendario, IconeChave, IconeDocumento, IconeEditar, IconeFabrica, IconePdf, IconeVoltar } from "./Icones";
+import { IconeCaixa, IconeCalendario, IconeChave, IconeDocumento, IconeEditar, IconeFabrica, IconePdf, IconeUsuarios, IconeVoltar } from "./Icones";
 
 function Info({ rotulo, valor, largo }: { rotulo: string; valor: ReactNode; largo?: boolean }) {
   return (
@@ -63,6 +63,9 @@ export function Detalhe({
   const servicos = m.manutencao_servicos ?? [];
   const totalMateriais = itens.reduce((s, i) => s + i.qtde * i.preco_unit, 0);
   const totalServicos = servicos.reduce((s, x) => s + (x.vlcusto ?? 0), 0);
+  const executor = m.empresa_usuario_id
+    ? nomeUsuario(m.empresa_usuario ?? catalogos.usuarios.find((u) => u.id === m.empresa_usuario_id), m.empresa_usuario_id)
+    : "";
 
   return (
     <div className="pagina">
@@ -114,6 +117,14 @@ export function Detalhe({
                 rotulo="Recorrente"
                 valor={m.recorrente ? `Sim — ${m.vezes_recorrente}x a cada ${m.dias_recorrente} dias` : "Não"}
               />
+            </div>
+          </Secao>
+          <Secao icone={<IconeUsuarios width={18} height={18} />} cor="verde" titulo="Execução">
+            <div className="grade">
+              <Info rotulo="Mantenedor" valor={executor} />
+              <Info rotulo="Início" valor={m.dt_inicio && `${data(m.dt_inicio)} ${hora(m.hr_inicio)}`.trim()} />
+              <Info rotulo="Término" valor={m.dt_termino && `${data(m.dt_termino)} ${hora(m.hr_termino)}`.trim()} />
+              <Info rotulo="Descrição da atividade" valor={m.desc_atividade} largo />
             </div>
           </Secao>
           <Secao icone={<IconeDocumento width={18} height={18} />} cor="ambar" titulo="Descrições">
@@ -172,9 +183,9 @@ export function Detalhe({
       )}
 
       {aba === "servicos" && (
-        <Secao icone={<IconeChave width={18} height={18} />} cor="verde" titulo="Serviços executados">
+        <Secao icone={<IconeChave width={18} height={18} />} cor="verde" titulo="Serviços de terceiros">
           {servicos.length === 0 ? (
-            <div className="vazio">Nenhum serviço nesta O.S.</div>
+            <div className="vazio">Nenhum serviço de terceiros nesta O.S.</div>
           ) : (
             <div className="tabela-wrap">
               <table>

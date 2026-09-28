@@ -42,6 +42,7 @@ e porta padrão, os domínios `progete.com.br`, `profinancas.com.br` e `progete.
 | Conexão | `GET /api/v1.json` → `{"code":"api_ativada"}` |
 | Login | `POST auth/authenticate?email=&password=` |
 | Cadastros (selects) | `GET manutencaos/{equipamentos,tipos,prioridades,fluxos,areas,outros,mantenedores,produtos}`, `GET produto_unidade_medidas` |
+| Mantenedor interno | `GET manutencaos/empresa_usuarios` (ou `GET empresa_usuarios`); sem a rota, o select fica vazio |
 | Lista | `GET manutencaos` |
 | Detalhe / Painel | `GET manutencaos` (o `GET manutencaos/:id` não traz equipamento, itens e serviços) |
 | Nova O.S. | `POST manutencaos` |

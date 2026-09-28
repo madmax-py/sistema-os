@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "rea
 import {
   ApiErro,
   lerManutencao,
+  nomeUsuario,
   salvarManutencao,
   type Catalogos,
   type Manutencao,
@@ -21,6 +22,7 @@ import {
   IconeLixeira,
   IconeMais,
   IconeSeta,
+  IconeUsuarios,
 } from "./Icones";
 
 interface ItemForm {
@@ -64,6 +66,12 @@ interface Cabecalho {
   recorrente: boolean;
   vezes: string;
   dias: string;
+  usuario: string;
+  dtInicio: string;
+  hrInicio: string;
+  dtTermino: string;
+  hrTermino: string;
+  atividade: string;
 }
 
 let seq = 0;
@@ -154,6 +162,12 @@ export function Formulario({
     recorrente: false,
     vezes: "0",
     dias: "0",
+    usuario: "",
+    dtInicio: hoje(),
+    hrInicio: "",
+    dtTermino: hoje(),
+    hrTermino: "",
+    atividade: "",
   });
   const [itens, setItens] = useState<ItemForm[]>([]);
   const [servicos, setServicos] = useState<ServicoForm[]>([]);
@@ -185,6 +199,12 @@ export function Formulario({
           recorrente: !!m.recorrente,
           vezes: String(m.vezes_recorrente ?? 0),
           dias: String(m.dias_recorrente ?? 0),
+          usuario: String(m.empresa_usuario_id ?? ""),
+          dtInicio: m.dt_inicio ?? "",
+          hrInicio: hora(m.hr_inicio),
+          dtTermino: m.dt_termino ?? "",
+          hrTermino: hora(m.hr_termino),
+          atividade: m.desc_atividade ?? "",
         });
         setItens(
           (m.manutencao_items ?? []).map((i) => ({
@@ -258,6 +278,12 @@ export function Formulario({
     recorrente: cab.recorrente,
     vezes_recorrente: cab.recorrente ? Number(cab.vezes) || 0 : 0,
     dias_recorrente: cab.recorrente ? Number(cab.dias) || 0 : 0,
+    empresa_usuario_id: cab.usuario ? Number(cab.usuario) : null,
+    dt_inicio: cab.dtInicio,
+    hr_inicio: cab.hrInicio,
+    dt_termino: cab.dtTermino,
+    hr_termino: cab.hrTermino,
+    desc_atividade: cab.atividade,
     manutencao_items_attributes: itens.map((i) =>
       i.remover
         ? { id: i.id, _destroy: true }
@@ -438,6 +464,33 @@ export function Formulario({
           </div>
         </Secao>
 
+        <Secao icone={<IconeUsuarios width={18} height={18} />} cor="verde" titulo="Execução">
+          <div className="campos">
+            <Campo rotulo="Mantenedor" largo>
+              <Select
+                value={cab.usuario}
+                onChange={(v) => set("usuario", v)}
+                opcoes={catalogos.usuarios.map((u) => ({ id: u.id, rotulo: nomeUsuario(u) }))}
+              />
+            </Campo>
+            <Campo rotulo="Data início" obrigatorio>
+              <input type="date" value={cab.dtInicio} onChange={(e) => set("dtInicio", e.target.value)} required />
+            </Campo>
+            <Campo rotulo="Hora início" obrigatorio>
+              <input type="time" value={cab.hrInicio} onChange={(e) => set("hrInicio", e.target.value)} required />
+            </Campo>
+            <Campo rotulo="Data término" obrigatorio>
+              <input type="date" value={cab.dtTermino} onChange={(e) => set("dtTermino", e.target.value)} required />
+            </Campo>
+            <Campo rotulo="Hora término" obrigatorio>
+              <input type="time" value={cab.hrTermino} onChange={(e) => set("hrTermino", e.target.value)} required />
+            </Campo>
+            <Campo rotulo="Descrição da atividade" largo>
+              <textarea rows={3} placeholder="O que foi feito…" value={cab.atividade} onChange={(e) => set("atividade", e.target.value)} />
+            </Campo>
+          </div>
+        </Secao>
+
         <Secao icone={<IconeDocumento width={18} height={18} />} cor="ambar" titulo="Descrições">
           <div className="campos">
             <Campo rotulo="Descrição do defeito" largo>
@@ -501,14 +554,14 @@ export function Formulario({
         <Secao
           icone={<IconeChave width={18} height={18} />}
           cor="verde"
-          titulo="Serviços executados"
+          titulo="Serviços de terceiros"
           acao={
             <button type="button" onClick={() => setServicos((l) => [...l, novoServico(cab.dtProgramada || hoje())])}>
               <IconeMais width={16} height={16} /> Serviço
             </button>
           }
         >
-          {servicos.length === 0 && <div className="vazio">Nenhum serviço. Use “+ Serviço” para adicionar.</div>}
+          {servicos.length === 0 && <div className="vazio">Nenhum serviço de terceiros. Use “+ Serviço” para adicionar.</div>}
           {servicos.map((s) => (
             <div key={s.key} className={`item-form linha${s.remover ? " removido" : ""}`}>
               <Campo rotulo="Mantenedor" obrigatorio largo>

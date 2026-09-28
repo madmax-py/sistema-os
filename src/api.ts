@@ -28,6 +28,25 @@ export interface Mantenedor {
   custo_hora: number;
 }
 
+/** Usuário da empresa que executa a O.S. (mantenedor interno) */
+export interface EmpresaUsuario {
+  id: number;
+  nome?: string | null;
+  name?: string | null;
+  email?: string | null;
+  cargo?: string | null;
+  funcao?: string | null;
+  descricao?: string | null;
+}
+
+/** "Mario Telles (Suporte)" — tolera os nomes de campo que a Progete pode usar */
+export function nomeUsuario(u: EmpresaUsuario | undefined, id?: number | null): string {
+  if (!u) return id ? `#${id}` : "";
+  const nome = u.nome || u.name || u.descricao || u.email || `#${u.id}`;
+  const papel = u.cargo || u.funcao;
+  return papel ? `${nome} (${papel})` : nome;
+}
+
 export interface Produto extends Opcao {
   produto_unidade_medida_id: number | null;
   custo: number;
@@ -40,7 +59,10 @@ export interface Catalogos {
   fluxos: Opcao[];
   areas: Opcao[];
   outros: Opcao[];
+  /** mantenedores terceiros (aba de serviços) */
   mantenedores: Mantenedor[];
+  /** usuários da empresa (mantenedor interno, em Dados gerais) */
+  usuarios: EmpresaUsuario[];
   produtos: Produto[];
   unidades: Opcao[];
 }
@@ -83,7 +105,14 @@ export interface Manutencao {
   recorrente: boolean;
   vezes_recorrente: number;
   dias_recorrente: number;
+  empresa_usuario_id: number | null;
+  dt_inicio: string | null;
+  hr_inicio: string | null;
+  dt_termino: string | null;
+  hr_termino: string | null;
+  desc_atividade: string | null;
   created_at: string;
+  empresa_usuario?: EmpresaUsuario;
   manutencao_equipamento?: Equipamento;
   manutencao_tipo?: Opcao;
   manutencao_prioridade?: Opcao;
@@ -111,6 +140,12 @@ export interface ManutencaoPayload {
   recorrente: boolean;
   vezes_recorrente: number;
   dias_recorrente: number;
+  empresa_usuario_id: number | null;
+  dt_inicio: string;
+  hr_inicio: string;
+  dt_termino: string;
+  hr_termino: string;
+  desc_atividade: string;
   manutencao_items_attributes: Array<{
     id?: number;
     manutencao_produto_id?: number;
@@ -347,7 +382,7 @@ export async function entrar(email: string, password: string): Promise<Sessao> {
 
 export async function carregarCatalogos(): Promise<Catalogos> {
   const get = <T,>(p: string) => chamar<T>("GET", p);
-  const [equipamentos, tipos, prioridades, fluxos, areas, outros, mantenedores, produtos, unidades] =
+  const [equipamentos, tipos, prioridades, fluxos, areas, outros, mantenedores, produtos, unidades, usuarios] =
     await Promise.all([
       get<Equipamento[]>("manutencaos/equipamentos"),
       get<Opcao[]>("manutencaos/tipos"),
@@ -358,8 +393,27 @@ export async function carregarCatalogos(): Promise<Catalogos> {
       get<Mantenedor[]>("manutencaos/mantenedores"),
       get<Produto[]>("manutencaos/produtos"),
       get<Opcao[]>("produto_unidade_medidas"),
+      carregarUsuarios(),
     ]);
-  return { equipamentos, tipos, prioridades, fluxos, areas, outros, mantenedores, produtos, unidades };
+  return { equipamentos, tipos, prioridades, fluxos, areas, outros, mantenedores, usuarios, produtos, unidades };
+}
+
+/**
+ * Usuários da empresa (mantenedor interno). Tenta manutencaos/empresa_usuarios
+ * e depois empresa_usuarios; se nenhuma existir, segue com a lista vazia em vez
+ * de derrubar o carregamento dos outros cadastros.
+ */
+async function carregarUsuarios(): Promise<EmpresaUsuario[]> {
+  for (const rota of ["manutencaos/empresa_usuarios", "empresa_usuarios"]) {
+    try {
+      const l = await chamar<EmpresaUsuario[]>("GET", rota);
+      if (Array.isArray(l)) return l;
+    } catch (e) {
+      if (e instanceof ApiErro && e.status === 401) throw e;
+    }
+  }
+  console.warn("[api] GET empresa_usuarios indisponível; mantenedor interno sem opções.");
+  return [];
 }
 
 export const listarManutencoes = () => chamar<Manutencao[]>("GET", "manutencaos");
