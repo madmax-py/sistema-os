@@ -154,6 +154,7 @@ button.primario:hover { filter: brightness(1.07); box-shadow: 0 14px 28px -8px r
 button.perigo { color: var(--erro); }
 button.perigo:hover { background: var(--erro-claro); }
 button.icone { width: 2.75rem; height: 2.75rem; padding: 0; }
+button.icone.pequeno { width: 2rem; height: 2rem; border-radius: 0.5rem; box-shadow: none; }
 
 /* ── Campos ── */
 label { display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; }
@@ -559,6 +560,7 @@ tbody tr:last-child td { border-bottom: none; }
 tfoot td { font-weight: 700; border-top: 1px solid var(--borda); border-bottom: none; background: var(--card-2); }
 .clicavel { cursor: pointer; transition: background 0.15s; }
 .clicavel:hover { background: var(--hover); }
+th.col-acao, td.col-acao { width: 1%; text-align: center; padding-top: 0.4rem; padding-bottom: 0.4rem; }
 .num { font-weight: 700; color: var(--azul-texto); }
 .pilula {
   display: inline-flex;

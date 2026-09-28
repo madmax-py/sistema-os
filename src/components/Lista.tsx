@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { listarManutencoes, type Catalogos, type Manutencao } from "../api";
-import { exportarXlsx, imprimirLista } from "../exportar";
+import { exportarXlsx, imprimirLista, imprimirOS } from "../exportar";
 import { data, hoje } from "../formato";
 import { IconeAtualizar, IconeBusca, IconeChave, IconeMais, IconePdf, IconePlanilha } from "./Icones";
 
@@ -131,6 +131,7 @@ export function Lista({
                 <th>Prioridade</th>
                 <th>Fluxo</th>
                 <th>Solicitante</th>
+                <th className="col-acao">PDF</th>
               </tr>
             </thead>
             <tbody>
@@ -150,6 +151,19 @@ export function Lista({
                   </td>
                   <td>{m.manutencao_fluxo?.descricao ?? "—"}</td>
                   <td>{m.solicitante}</td>
+                  <td className="col-acao">
+                    <button
+                      className="icone pequeno"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        imprimirOS(m, catalogos);
+                      }}
+                      title={`Gerar PDF da O.S. nº ${m.id}`}
+                      aria-label={`Gerar PDF da O.S. nº ${m.id}`}
+                    >
+                      <IconePdf width={16} height={16} />
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
