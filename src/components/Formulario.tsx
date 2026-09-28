@@ -77,9 +77,9 @@ interface Cabecalho {
 let seq = 0;
 const novaKey = () => `n${++seq}`;
 
-/** Horário padrão quando a hora vem em branco (o mesmo da tela da Progete) */
-const HORA_INICIO = "08:00";
-const HORA_TERMINO = "12:00";
+/** Horário padrão quando a hora vem em branco */
+const HORA_INICIO = "00:00";
+const HORA_TERMINO = "00:00";
 
 const novoItem = (dt: string): ItemForm => ({ key: novaKey(), produtoId: "", dt, qtde: "1", preco: "", nrDoc: "" });
 
