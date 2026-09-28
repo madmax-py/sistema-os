@@ -77,15 +77,19 @@ interface Cabecalho {
 let seq = 0;
 const novaKey = () => `n${++seq}`;
 
+/** Horário padrão quando a hora vem em branco (o mesmo da tela da Progete) */
+const HORA_INICIO = "08:00";
+const HORA_TERMINO = "12:00";
+
 const novoItem = (dt: string): ItemForm => ({ key: novaKey(), produtoId: "", dt, qtde: "1", preco: "", nrDoc: "" });
 
 const novoServico = (dt: string): ServicoForm => ({
   key: novaKey(),
   mantenedorId: "",
   dtInicio: dt,
-  hrInicio: "",
+  hrInicio: HORA_INICIO,
   dtTermino: dt,
-  hrTermino: "",
+  hrTermino: HORA_TERMINO,
   atividade: "",
   nrDoc: "",
   vlcusto: "",
@@ -164,9 +168,9 @@ export function Formulario({
     dias: "0",
     usuario: "",
     dtInicio: hoje(),
-    hrInicio: "",
+    hrInicio: HORA_INICIO,
     dtTermino: hoje(),
-    hrTermino: "",
+    hrTermino: HORA_TERMINO,
     atividade: "",
   });
   const [itens, setItens] = useState<ItemForm[]>([]);
@@ -201,9 +205,9 @@ export function Formulario({
           dias: String(m.dias_recorrente ?? 0),
           usuario: String(m.empresa_usuario_id ?? ""),
           dtInicio: m.dt_inicio ?? "",
-          hrInicio: hora(m.hr_inicio),
+          hrInicio: hora(m.hr_inicio) || HORA_INICIO,
           dtTermino: m.dt_termino ?? "",
-          hrTermino: hora(m.hr_termino),
+          hrTermino: hora(m.hr_termino) || HORA_TERMINO,
           atividade: m.desc_atividade ?? "",
         });
         setItens(
@@ -464,6 +468,17 @@ export function Formulario({
           </div>
         </Secao>
 
+        <Secao icone={<IconeDocumento width={18} height={18} />} cor="ambar" titulo="Descrições">
+          <div className="campos">
+            <Campo rotulo="Descrição do defeito" largo>
+              <textarea rows={3} placeholder="O que está acontecendo com o equipamento…" value={cab.defeito} onChange={(e) => set("defeito", e.target.value)} />
+            </Campo>
+            <Campo rotulo="Informações adicionais" largo>
+              <textarea rows={3} placeholder="Observações extras (opcional)…" value={cab.infad} onChange={(e) => set("infad", e.target.value)} />
+            </Campo>
+          </div>
+        </Secao>
+
         <Secao icone={<IconeUsuarios width={18} height={18} />} cor="verde" titulo="Execução">
           <div className="campos">
             <Campo rotulo="Mantenedor" largo>
@@ -487,17 +502,6 @@ export function Formulario({
             </Campo>
             <Campo rotulo="Descrição da atividade" largo>
               <textarea rows={3} placeholder="O que foi feito…" value={cab.atividade} onChange={(e) => set("atividade", e.target.value)} />
-            </Campo>
-          </div>
-        </Secao>
-
-        <Secao icone={<IconeDocumento width={18} height={18} />} cor="ambar" titulo="Descrições">
-          <div className="campos">
-            <Campo rotulo="Descrição do defeito" largo>
-              <textarea rows={3} placeholder="O que está acontecendo com o equipamento…" value={cab.defeito} onChange={(e) => set("defeito", e.target.value)} />
-            </Campo>
-            <Campo rotulo="Informações adicionais" largo>
-              <textarea rows={3} placeholder="Observações extras (opcional)…" value={cab.infad} onChange={(e) => set("infad", e.target.value)} />
             </Campo>
           </div>
         </Secao>

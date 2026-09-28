@@ -119,18 +119,18 @@ export function Detalhe({
               />
             </div>
           </Secao>
+          <Secao icone={<IconeDocumento width={18} height={18} />} cor="ambar" titulo="Descrições">
+            <div className="grade">
+              <Info rotulo="Descrição do defeito" valor={m.descricao_defeito} largo />
+              <Info rotulo="Informações adicionais" valor={m.infad} largo />
+            </div>
+          </Secao>
           <Secao icone={<IconeUsuarios width={18} height={18} />} cor="verde" titulo="Execução">
             <div className="grade">
               <Info rotulo="Mantenedor" valor={executor} />
               <Info rotulo="Início" valor={m.dt_inicio && `${data(m.dt_inicio)} ${hora(m.hr_inicio)}`.trim()} />
               <Info rotulo="Término" valor={m.dt_termino && `${data(m.dt_termino)} ${hora(m.hr_termino)}`.trim()} />
               <Info rotulo="Descrição da atividade" valor={m.desc_atividade} largo />
-            </div>
-          </Secao>
-          <Secao icone={<IconeDocumento width={18} height={18} />} cor="ambar" titulo="Descrições">
-            <div className="grade">
-              <Info rotulo="Descrição do defeito" valor={m.descricao_defeito} largo />
-              <Info rotulo="Informações adicionais" valor={m.infad} largo />
             </div>
           </Secao>
         </>
