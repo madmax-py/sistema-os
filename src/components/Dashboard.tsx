@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { listarManutencoes, type Catalogos, type Manutencao } from "../api";
-import { calcular, type Contagem, type Filtro, type Mes, type Periodo } from "../dashboard";
+import { calcular, type Contagem, type Filtro, type Periodo } from "../dashboard";
 import { data, moeda } from "../formato";
 import { Secao } from "./Detalhe";
 import {
@@ -130,35 +130,50 @@ function Colunas({ dados, formato = (v) => num(v) }: { dados: Contagem[]; format
   );
 }
 
-/** Colunas empilhadas: materiais (série 1) + serviços (série 2), com legenda. */
-function CustoMensal({ meses }: { meses: Mes[] }) {
-  const max = Math.max(...meses.map((m) => m.custoMateriais + m.custoServicos), 0) || 1;
-  const rotularTodas = meses.length <= 12;
-  const passo = Math.ceil(meses.length / 12);
+interface Serie {
+  rotulo: string;
+  /** valor de cada ponto (mesma ordem de `pontos`) */
+  valores: number[];
+}
+
+/** Colunas empilhadas de duas séries (s1 embaixo, s2 em cima), com legenda. */
+function Empilhado({ pontos, s1, s2, formato, formatoCurto = formato }: {
+  pontos: { chave: string; rotulo: string }[];
+  s1: Serie;
+  s2: Serie;
+  formato: (v: number) => string;
+  formatoCurto?: (v: number) => string;
+}) {
+  const totais = pontos.map((_, i) => s1.valores[i] + s2.valores[i]);
+  const max = Math.max(...totais, 0) || 1;
+  const rotularTodas = pontos.length <= 12;
+  const passo = Math.ceil(pontos.length / 12);
   return (
     <>
       <div className="legenda">
-        <span><i className="amostra s1" /> Materiais</span>
-        <span><i className="amostra s2" /> Serviços</span>
+        <span><i className="amostra s1" /> {s1.rotulo}</span>
+        <span><i className="amostra s2" /> {s2.rotulo}</span>
       </div>
       <div className="colunas">
-        {meses.map((m, i) => {
-          const total = m.custoMateriais + m.custoServicos;
+        {pontos.map((p, i) => {
+          const a = s1.valores[i];
+          const b = s2.valores[i];
+          const total = totais[i];
           return (
             <div
-              key={m.chave}
-              className={`coluna dica${ponta(i, meses.length)}`}
+              key={p.chave}
+              className={`coluna dica${ponta(i, pontos.length)}`}
               tabIndex={0}
-              data-dica={`${m.rotulo} — Materiais ${moeda(m.custoMateriais)} · Serviços ${moeda(m.custoServicos)} · Total ${moeda(total)}`}
+              data-dica={`${p.rotulo} — ${s1.rotulo} ${formato(a)} · ${s2.rotulo} ${formato(b)} · Total ${formato(total)}`}
             >
-              <span className="coluna-valor">{rotularTodas && total > 0 ? moedaCurta(total) : ""}</span>
+              <span className="coluna-valor">{rotularTodas && total > 0 ? formatoCurto(total) : ""}</span>
               <span className="coluna-trilho">
                 <span className="coluna-pilha" style={{ height: `${total ? Math.max((total / max) * 100, 2) : 0}%` }}>
-                  {m.custoServicos > 0 && <span className="seg s2" style={{ flexGrow: m.custoServicos }} />}
-                  {m.custoMateriais > 0 && <span className="seg s1" style={{ flexGrow: m.custoMateriais }} />}
+                  {b > 0 && <span className="seg s2" style={{ flexGrow: b }} />}
+                  {a > 0 && <span className="seg s1" style={{ flexGrow: a }} />}
                 </span>
               </span>
-              <span className="coluna-rotulo">{i % passo === 0 ? m.rotulo : ""}</span>
+              <span className="coluna-rotulo">{i % passo === 0 ? p.rotulo : ""}</span>
             </div>
           );
         })}
@@ -167,31 +182,39 @@ function CustoMensal({ meses }: { meses: Mes[] }) {
   );
 }
 
-/** Barra 100% com a divisão do custo */
-function Divisao({ materiais, servicos }: { materiais: number; servicos: number }) {
-  const total = materiais + servicos;
-  if (!total) return <div className="vazio">Nenhum custo lançado no período.</div>;
+/** Barra 100% dividida entre duas partes */
+function Divisao({ partes, formato, sufixo, vazio }: {
+  partes: [{ rotulo: string; valor: number }, { rotulo: string; valor: number }];
+  formato: (v: number) => string;
+  sufixo: string;
+  vazio: string;
+}) {
+  const total = partes[0].valor + partes[1].valor;
+  if (!total) return <div className="vazio">{vazio}</div>;
   return (
     <div className="divisao">
       <div className="divisao-barra">
-        {materiais > 0 && (
-          <span className="seg s1 dica" tabIndex={0} style={{ flexGrow: materiais }} data-dica={`Materiais: ${moeda(materiais)}`} />
-        )}
-        {servicos > 0 && (
-          <span className="seg s2 dica" tabIndex={0} style={{ flexGrow: servicos }} data-dica={`Serviços: ${moeda(servicos)}`} />
+        {partes.map(
+          (p, i) =>
+            p.valor > 0 && (
+              <span
+                key={p.rotulo}
+                className={`seg s${i + 1} dica`}
+                tabIndex={0}
+                style={{ flexGrow: p.valor }}
+                data-dica={`${p.rotulo}: ${formato(p.valor)}`}
+              />
+            )
         )}
       </div>
       <div className="divisao-legenda">
-        <div>
-          <span><i className="amostra s1" /> Materiais</span>
-          <b>{moeda(materiais)}</b>
-          <small>{pct(materiais, total)}% do custo</small>
-        </div>
-        <div>
-          <span><i className="amostra s2" /> Serviços</span>
-          <b>{moeda(servicos)}</b>
-          <small>{pct(servicos, total)}% do custo</small>
-        </div>
+        {partes.map((p, i) => (
+          <div key={p.rotulo}>
+            <span><i className={`amostra s${i + 1}`} /> {p.rotulo}</span>
+            <b>{formato(p.valor)}</b>
+            <small>{pct(p.valor, total)}% {sufixo}</small>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -225,6 +248,7 @@ export function Dashboard({ catalogos, onAbrir }: { catalogos: Catalogos; onAbri
   const variacao = ind.mesAtual - ind.mesAnterior;
   const problemas = ind.qualidade.reduce((s, q) => s + q.valor, 0);
   const maxHorasMant = Math.max(...ind.mantenedores.map((m) => m.horas), 0) || 1;
+  const maxHorasLocal = Math.max(...ind.mantenedoresLocais.map((m) => m.horas), 0) || 1;
   const maxCustoMat = Math.max(...ind.materiais.map((m) => m.custo), 0) || 1;
 
   return (
@@ -328,7 +352,7 @@ export function Dashboard({ catalogos, onAbrir }: { catalogos: Catalogos; onAbri
         <Tile
           rotulo="Custo total"
           valor={moeda(ind.custoTotal)}
-          detalhe={`Materiais ${moedaCurta(ind.custoMateriais)} · Serviços ${moedaCurta(ind.custoServicos)}`}
+          detalhe={`Materiais ${moedaCurta(ind.custoMateriais)} · Terceiros ${moedaCurta(ind.custoServicos)}`}
           icone={<IconeCaixa width={18} height={18} />}
           cor="ambar"
         />
@@ -341,7 +365,21 @@ export function Dashboard({ catalogos, onAbrir }: { catalogos: Catalogos; onAbri
         <Tile
           rotulo="Horas trabalhadas"
           valor={horasFmt(ind.horas)}
-          detalhe={`${num(ind.qtdServicos)} serviço(s) · média ${horasFmt(ind.horasMediasPorOS)} por O.S.`}
+          detalhe={`Locais ${horasFmt(ind.horasLocais)} · Terceiros ${horasFmt(ind.horasTerceiros)} · média ${horasFmt(ind.horasMediasPorOS)} por O.S.`}
+          icone={<IconeChave width={18} height={18} />}
+          cor="verde"
+        />
+        <Tile
+          rotulo="Horas locais"
+          valor={horasFmt(ind.horasLocais)}
+          detalhe={`${num(ind.osComExecucao)} O.S. com execução interna (${pct(ind.horasLocais, ind.horas)}% das horas)`}
+          icone={<IconeUsuarios width={18} height={18} />}
+          cor="azul"
+        />
+        <Tile
+          rotulo="Horas de terceiros"
+          valor={horasFmt(ind.horasTerceiros)}
+          detalhe={`${num(ind.qtdServicos)} serviço(s) · ${moedaCurta(ind.custoServicos)} (${pct(ind.horasTerceiros, ind.horas)}% das horas)`}
           icone={<IconeChave width={18} height={18} />}
           cor="verde"
         />
@@ -361,8 +399,8 @@ export function Dashboard({ catalogos, onAbrir }: { catalogos: Catalogos; onAbri
         />
         <Tile
           rotulo="Mantenedores envolvidos"
-          valor={num(ind.mantenedoresEnvolvidos)}
-          detalhe={`de ${num(catalogos.mantenedores.length)} cadastrados`}
+          valor={num(ind.mantenedoresLocaisEnvolvidos + ind.mantenedoresEnvolvidos)}
+          detalhe={`${num(ind.mantenedoresLocaisEnvolvidos)} locais · ${num(ind.mantenedoresEnvolvidos)} terceiros`}
           icone={<IconeUsuarios width={18} height={18} />}
           cor="verde"
         />
@@ -388,16 +426,52 @@ export function Dashboard({ catalogos, onAbrir }: { catalogos: Catalogos; onAbri
           <Colunas dados={ind.meses.map((m) => ({ rotulo: m.rotulo, valor: m.os }))} />
         </Secao>
         <Secao icone={<IconeCaixa width={18} height={18} />} cor="ambar" titulo="Custo por mês">
-          <CustoMensal meses={ind.meses} />
+          <Empilhado
+            pontos={ind.meses}
+            s1={{ rotulo: "Materiais", valores: ind.meses.map((m) => m.custoMateriais) }}
+            s2={{ rotulo: "Terceiros", valores: ind.meses.map((m) => m.custoServicos) }}
+            formato={moeda}
+            formatoCurto={moedaCurta}
+          />
         </Secao>
       </div>
 
       <div className="grade-painel duas">
         <Secao icone={<IconeCaixa width={18} height={18} />} cor="ambar" titulo="Divisão do custo">
-          <Divisao materiais={ind.custoMateriais} servicos={ind.custoServicos} />
+          <Divisao
+            partes={[
+              { rotulo: "Materiais", valor: ind.custoMateriais },
+              { rotulo: "Serviços de terceiros", valor: ind.custoServicos },
+            ]}
+            formato={moeda}
+            sufixo="do custo"
+            vazio="Nenhum custo lançado no período."
+          />
         </Secao>
         <Secao icone={<IconeCalendario width={18} height={18} />} cor="violeta" titulo="O.S. por dia da semana">
           <Colunas dados={ind.porDiaSemana} />
+        </Secao>
+      </div>
+
+      <div className="grade-painel duas">
+        <Secao icone={<IconeChave width={18} height={18} />} cor="verde" titulo="Horas por mês">
+          <Empilhado
+            pontos={ind.meses}
+            s1={{ rotulo: "Locais", valores: ind.meses.map((m) => m.horasLocais) }}
+            s2={{ rotulo: "Terceiros", valores: ind.meses.map((m) => m.horasTerceiros) }}
+            formato={horasFmt}
+          />
+        </Secao>
+        <Secao icone={<IconeUsuarios width={18} height={18} />} cor="verde" titulo="Divisão das horas">
+          <Divisao
+            partes={[
+              { rotulo: "Locais", valor: ind.horasLocais },
+              { rotulo: "Terceiros", valor: ind.horasTerceiros },
+            ]}
+            formato={horasFmt}
+            sufixo="das horas"
+            vazio="Nenhuma hora lançada no período."
+          />
         </Secao>
       </div>
 
@@ -433,10 +507,48 @@ export function Dashboard({ catalogos, onAbrir }: { catalogos: Catalogos; onAbri
         </Secao>
       </div>
 
-      {/* Mantenedores */}
-      <Secao icone={<IconeUsuarios width={18} height={18} />} cor="verde" titulo="Mantenedores">
+      {/* Mantenedores locais */}
+      <Secao icone={<IconeUsuarios width={18} height={18} />} cor="azul" titulo="Mantenedores locais">
+        {ind.mantenedoresLocais.length === 0 ? (
+          <div className="vazio">Nenhuma O.S. com mantenedor interno no período.</div>
+        ) : (
+          <div className="tabela-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Mantenedor</th>
+                  <th>Horas</th>
+                  <th className="col-barra" aria-hidden />
+                  <th>O.S.</th>
+                  <th>Média por O.S.</th>
+                  <th>% das horas locais</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ind.mantenedoresLocais.map((m) => (
+                  <tr key={m.nome}>
+                    <td>{m.nome}</td>
+                    <td>{horasFmt(m.horas)}</td>
+                    <td className="col-barra">
+                      <span className="mini-trilho">
+                        <span className="mini-marca" style={{ width: `${m.horas > 0 ? Math.max((m.horas / maxHorasLocal) * 100, 1) : 0}%` }} />
+                      </span>
+                    </td>
+                    <td>{num(m.os)}</td>
+                    <td>{horasFmt(m.os ? m.horas / m.os : 0)}</td>
+                    <td>{pct(m.horas, ind.horasLocais)}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Secao>
+
+      {/* Mantenedores terceiros */}
+      <Secao icone={<IconeChave width={18} height={18} />} cor="verde" titulo="Mantenedores terceiros">
         {ind.mantenedores.length === 0 ? (
-          <div className="vazio">Nenhum serviço lançado no período.</div>
+          <div className="vazio">Nenhum serviço de terceiros lançado no período.</div>
         ) : (
           <div className="tabela-wrap">
             <table>

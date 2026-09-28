@@ -1,6 +1,8 @@
 // Cálculos do painel de indicadores — tudo derivado de GET manutencaos
 // (com itens e serviços aninhados) + catálogos. Nada é armazenado.
-import type { Catalogos, Manutencao, ManutencaoServico } from "./api";
+// Horas "locais" = execução interna da O.S. (empresa_usuario, dt/hr início e
+// término na própria manutenção); horas de "terceiros" = manutencao_servicos.
+import { nomeUsuario, type Catalogos, type Manutencao, type ManutencaoServico } from "./api";
 import { hoje, hora } from "./formato";
 
 export type Periodo = "todos" | "30d" | "90d" | "12m" | "ano";
@@ -25,6 +27,13 @@ export interface LinhaMantenedor {
   custo: number;
 }
 
+/** Mantenedor interno (usuário da empresa) — não tem custo lançado */
+export interface LinhaLocal {
+  nome: string;
+  os: number;
+  horas: number;
+}
+
 export interface LinhaMaterial {
   nome: string;
   unidade: string;
@@ -39,7 +48,8 @@ export interface Mes {
   os: number;
   custoMateriais: number;
   custoServicos: number;
-  horas: number;
+  horasLocais: number;
+  horasTerceiros: number;
 }
 
 export interface Indicadores {
@@ -52,12 +62,18 @@ export interface Indicadores {
   custoServicos: number;
   custoTotal: number;
   custoMedio: number;
+  /** locais + terceiros */
   horas: number;
+  horasLocais: number;
+  horasTerceiros: number;
   horasMediasPorOS: number;
+  /** O.S. com execução interna com horário válido */
+  osComExecucao: number;
   diasMedios: number | null;
   recorrentes: number;
   qtdServicos: number;
   qtdItens: number;
+  mantenedoresLocaisEnvolvidos: number;
   mantenedoresEnvolvidos: number;
   materiaisDistintos: number;
   equipamentosAtendidos: number;
@@ -72,6 +88,7 @@ export interface Indicadores {
   equipamentosPorCusto: Contagem[];
   porDiaSemana: Contagem[];
   porSolicitante: Contagem[];
+  mantenedoresLocais: LinhaLocal[];
   mantenedores: LinhaMantenedor[];
   materiais: LinhaMaterial[];
   qualidade: Contagem[];
@@ -97,20 +114,29 @@ function inicioDoPeriodo(p: Periodo): string | null {
   return null;
 }
 
-/** Horas de um serviço; null se faltar horário, negativo se término < início */
-export function horasServico(s: ManutencaoServico): number | null {
-  const hi = hora(s.hr_inicio);
-  const ht = hora(s.hr_termino);
-  if (!s.dt_inicio || !s.dt_termino || !hi || !ht) return null;
-  return (Date.parse(`${s.dt_termino}T${ht}`) - Date.parse(`${s.dt_inicio}T${hi}`)) / 3_600_000;
+type IntervaloHoras = { dt_inicio: string | null; hr_inicio: string | null; dt_termino: string | null; hr_termino: string | null };
+
+/** Horas entre início e término; null se faltar data/hora, negativo se término < início */
+function horasEntre(x: IntervaloHoras): number | null {
+  const hi = hora(x.hr_inicio);
+  const ht = hora(x.hr_termino);
+  if (!x.dt_inicio || !x.dt_termino || !hi || !ht) return null;
+  return (Date.parse(`${x.dt_termino}T${ht}`) - Date.parse(`${x.dt_inicio}T${hi}`)) / 3_600_000;
 }
+
+/** Horas de um serviço de terceiros */
+export const horasServico = (s: ManutencaoServico) => horasEntre(s);
+
+/** Horas da execução interna da O.S. */
+export const horasExecucao = (m: Manutencao) => horasEntre(m);
 
 const custoMateriaisOS = (m: Manutencao) =>
   (m.manutencao_items ?? []).reduce((s, i) => s + (i.qtde ?? 0) * (i.preco_unit ?? 0), 0);
 const custoServicosOS = (m: Manutencao) =>
   (m.manutencao_servicos ?? []).reduce((s, x) => s + (x.vlcusto ?? 0), 0);
-const horasOS = (m: Manutencao) =>
+const horasTerceirosOS = (m: Manutencao) =>
   (m.manutencao_servicos ?? []).reduce((s, x) => s + Math.max(horasServico(x) ?? 0, 0), 0);
+const horasLocaisOS = (m: Manutencao) => Math.max(horasExecucao(m) ?? 0, 0);
 
 function contar<T>(lista: T[], chave: (x: T) => string | undefined, peso: (x: T) => number = () => 1): Contagem[] {
   const mapa = new Map<string, number>();
@@ -146,7 +172,7 @@ function serieMensal(lista: Manutencao[], f: Filtro): Mes[] {
   const fm = Number(fimChave.slice(5, 7));
   while ((a < fa || (a === fa && mm <= fm)) && meses.length < 60) {
     const chave = `${a}-${String(mm).padStart(2, "0")}`;
-    meses.push({ chave, rotulo: `${MESES[mm - 1]}/${String(a).slice(2)}`, os: 0, custoMateriais: 0, custoServicos: 0, horas: 0 });
+    meses.push({ chave, rotulo: `${MESES[mm - 1]}/${String(a).slice(2)}`, os: 0, custoMateriais: 0, custoServicos: 0, horasLocais: 0, horasTerceiros: 0 });
     mm++;
     if (mm > 12) {
       mm = 1;
@@ -160,7 +186,8 @@ function serieMensal(lista: Manutencao[], f: Filtro): Mes[] {
     x.os++;
     x.custoMateriais += custoMateriaisOS(m);
     x.custoServicos += custoServicosOS(m);
-    x.horas += horasOS(m);
+    x.horasLocais += horasLocaisOS(m);
+    x.horasTerceiros += horasTerceirosOS(m);
   }
   return meses.slice(-24);
 }
@@ -185,14 +212,29 @@ export function calcular(todas: Manutencao[], catalogos: Catalogos, f: Filtro): 
 
   const custoMateriais = lista.reduce((s, m) => s + custoMateriaisOS(m), 0);
   const custoServicos = lista.reduce((s, m) => s + custoServicosOS(m), 0);
-  const horas = lista.reduce((s, m) => s + horasOS(m), 0);
+  const horasLocais = lista.reduce((s, m) => s + horasLocaisOS(m), 0);
+  const horasTerceiros = lista.reduce((s, m) => s + horasTerceirosOS(m), 0);
+  const horas = horasLocais + horasTerceiros;
 
   const duracoes = lista
     .filter((m) => m.dt_programada && m.dt_finalizada)
     .map((m) => (dia(m.dt_finalizada).getTime() - dia(m.dt_programada).getTime()) / 86_400_000)
     .filter((d) => d >= 0);
 
-  // Mantenedores
+  // Mantenedores locais (execução interna)
+  const mapaLocal = new Map<number, LinhaLocal>();
+  for (const m of lista) {
+    const id = m.empresa_usuario_id;
+    if (!id) continue;
+    const nome = nomeUsuario(m.empresa_usuario ?? catalogos.usuarios.find((u) => u.id === id), id);
+    const l = mapaLocal.get(id) ?? { nome, os: 0, horas: 0 };
+    l.os++;
+    l.horas += horasLocaisOS(m);
+    mapaLocal.set(id, l);
+  }
+  const mantenedoresLocais = [...mapaLocal.values()].sort((a, b) => b.horas - a.horas || b.os - a.os);
+
+  // Mantenedores terceiros
   const mapaMant = new Map<number, LinhaMantenedor & { osSet: Set<number> }>();
   for (const { os, s } of servicos) {
     const id = s.manutencao_mantenedor_id;
@@ -234,12 +276,14 @@ export function calcular(todas: Manutencao[], catalogos: Catalogos, f: Filtro): 
   const servicosInvertidos = servicos.filter(({ s }) => (horasServico(s) ?? 0) < 0).length;
   const servicosSemHora = servicos.filter(({ s }) => horasServico(s) === null).length;
   const qualidade: Contagem[] = [
-    { rotulo: "Serviços com término antes do início", valor: servicosInvertidos },
-    { rotulo: "Serviços sem horário", valor: servicosSemHora },
-    { rotulo: "O.S. sem serviços", valor: lista.filter((m) => !(m.manutencao_servicos ?? []).length).length },
+    { rotulo: "O.S. sem mantenedor interno", valor: lista.filter((m) => !m.empresa_usuario_id).length },
+    { rotulo: "Execução sem data/hora", valor: lista.filter((m) => horasExecucao(m) === null).length },
+    { rotulo: "Execução com término antes do início", valor: lista.filter((m) => (horasExecucao(m) ?? 0) < 0).length },
+    { rotulo: "Serviços de terceiros com término antes do início", valor: servicosInvertidos },
+    { rotulo: "Serviços de terceiros sem horário", valor: servicosSemHora },
     { rotulo: "O.S. sem materiais", valor: lista.filter((m) => !(m.manutencao_items ?? []).length).length },
     { rotulo: "O.S. sem descrição do defeito", valor: lista.filter((m) => !m.descricao_defeito?.trim()).length },
-    { rotulo: "Serviços sem custo", valor: servicos.filter(({ s }) => !s.vlcusto).length },
+    { rotulo: "Serviços de terceiros sem custo", valor: servicos.filter(({ s }) => !s.vlcusto).length },
   ];
 
   const porDia = contar(lista.filter((m) => m.dt_programada), (m) => DIAS[dia(m.dt_programada).getDay()]);
@@ -259,11 +303,15 @@ export function calcular(todas: Manutencao[], catalogos: Catalogos, f: Filtro): 
     custoTotal: custoMateriais + custoServicos,
     custoMedio: lista.length ? (custoMateriais + custoServicos) / lista.length : 0,
     horas,
+    horasLocais,
+    horasTerceiros,
+    osComExecucao: lista.filter((m) => (horasExecucao(m) ?? 0) > 0).length,
     horasMediasPorOS: lista.length ? horas / lista.length : 0,
     diasMedios: duracoes.length ? duracoes.reduce((s, d) => s + d, 0) / duracoes.length : null,
     recorrentes: lista.filter((m) => m.recorrente).length,
     qtdServicos: servicos.length,
     qtdItens: itens.length,
+    mantenedoresLocaisEnvolvidos: mantenedoresLocais.length,
     mantenedoresEnvolvidos: mantenedores.length,
     materiaisDistintos: materiais.length,
     equipamentosAtendidos: new Set(lista.map((m) => m.manutencao_equipamento_id)).size,
@@ -278,6 +326,7 @@ export function calcular(todas: Manutencao[], catalogos: Catalogos, f: Filtro): 
     equipamentosPorCusto: contar(lista, nomeEquip, (m) => custoMateriaisOS(m) + custoServicosOS(m)).filter((x) => x.valor > 0),
     porDiaSemana,
     porSolicitante: contar(lista, (m) => m.solicitante?.trim() || undefined),
+    mantenedoresLocais,
     mantenedores,
     materiais,
     qualidade,
