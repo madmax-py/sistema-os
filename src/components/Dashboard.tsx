@@ -28,7 +28,7 @@ import {
 /* Formatação                                                                 */
 /* ------------------------------------------------------------------------- */
 
-const num = (v: number, casas = 0) =>
+export const num = (v: number, casas = 0) =>
   v.toLocaleString("pt-BR", { minimumFractionDigits: casas, maximumFractionDigits: casas });
 const horasFmt = (h: number) => {
   const total = Math.round(h * 60);
@@ -36,9 +36,9 @@ const horasFmt = (h: number) => {
   const mm = total % 60;
   return mm ? `${hh}h${String(mm).padStart(2, "0")}` : `${hh}h`;
 };
-const moedaCurta = (v: number) =>
+export const moedaCurta = (v: number) =>
   v >= 1000 ? `R$ ${num(v / 1000, 1)} mil` : moeda(v);
-const pct = (parte: number, todo: number) => (todo ? Math.round((parte / todo) * 100) : 0);
+export const pct = (parte: number, todo: number) => (todo ? Math.round((parte / todo) * 100) : 0);
 
 const PERIODOS: { id: Periodo; rotulo: string }[] = [
   { id: "todos", rotulo: "Todo o período" },
@@ -52,7 +52,7 @@ const PERIODOS: { id: Periodo; rotulo: string }[] = [
 /* Peças                                                                      */
 /* ------------------------------------------------------------------------- */
 
-function Tile({ rotulo, valor, detalhe, icone, cor }: {
+export function Tile({ rotulo, valor, detalhe, icone, cor }: {
   rotulo: string;
   valor: ReactNode;
   detalhe?: ReactNode;
@@ -72,7 +72,7 @@ function Tile({ rotulo, valor, detalhe, icone, cor }: {
 }
 
 /** Barras horizontais de uma série (ranking). Valor na ponta; dica ao passar o mouse. */
-function BarrasH({ dados, formato = (v) => num(v), limite = 8, vazio = "Sem dados no período." }: {
+export function BarrasH({ dados, formato = (v) => num(v), limite = 8, vazio = "Sem dados no período." }: {
   dados: Contagem[];
   formato?: (v: number) => string;
   limite?: number;
@@ -113,7 +113,7 @@ function BarrasH({ dados, formato = (v) => num(v), limite = 8, vazio = "Sem dado
 const ponta = (i: number, n: number) => (n > 3 && i < 2 ? " ini" : n > 3 && i >= n - 2 ? " fim" : "");
 
 /** Colunas de uma série ao longo do tempo/categorias. */
-function Colunas({ dados, formato = (v) => num(v) }: { dados: Contagem[]; formato?: (v: number) => string }) {
+export function Colunas({ dados, formato = (v) => num(v) }: { dados: Contagem[]; formato?: (v: number) => string }) {
   const max = Math.max(...dados.map((x) => x.valor), 0) || 1;
   const rotularTodas = dados.length <= 12;
   const iMax = dados.findIndex((x) => x.valor === max);
@@ -191,7 +191,7 @@ function Empilhado({ pontos, s1, s2, formato, formatoCurto = formato }: {
 }
 
 /** Barra 100% dividida entre duas partes */
-function Divisao({ partes, formato, sufixo, vazio }: {
+export function Divisao({ partes, formato, sufixo, vazio }: {
   partes: [{ rotulo: string; valor: number }, { rotulo: string; valor: number }];
   formato: (v: number) => string;
   sufixo: string;

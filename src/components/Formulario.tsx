@@ -12,6 +12,7 @@ import { hoje, hora, mensagensValidacao } from "../formato";
 import { Abas, type AbaOS } from "./Abas";
 import { Secao } from "./Detalhe";
 import { Cartoes } from "./Cartoes";
+import { SelectBusca } from "./SelectBusca";
 import {
   IconeAlerta,
   IconeCaixa,
@@ -74,6 +75,9 @@ interface Cabecalho {
   atividade: string;
 }
 
+/** Valor do select de setor para equipamentos sem setor */
+const SEM_SETOR = "-1";
+
 let seq = 0;
 const novaKey = () => `n${++seq}`;
 
@@ -119,15 +123,16 @@ function Campo({ rotulo, obrigatorio, largo, children }: {
   );
 }
 
-function Select({ value, onChange, opcoes, obrigatorio }: {
+function Select({ value, onChange, opcoes, obrigatorio, vazio = "Selecione…" }: {
   value: string;
   onChange: (v: string) => void;
   opcoes: { id: number; rotulo: string }[];
   obrigatorio?: boolean;
+  vazio?: string;
 }) {
   return (
     <select value={value} onChange={(e) => onChange(e.target.value)} required={obrigatorio}>
-      <option value="">Selecione…</option>
+      <option value="">{vazio}</option>
       {opcoes.map((o) => (
         <option key={o.id} value={o.id}>
           {o.rotulo}
@@ -182,11 +187,31 @@ export function Formulario({
   const topo = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
+  // Setor só filtra a lista de equipamentos (não é campo da O.S.); -1 = sem setor
+  const [setor, setSetor] = useState("");
+  const setorDe = (equipamentoId: string) => {
+    const e = catalogos.equipamentos.find((x) => String(x.id) === equipamentoId);
+    return e ? String(e.manutencao_setor_id ?? SEM_SETOR) : "";
+  };
+  const doSetor = (e: { manutencao_setor_id: number | null }) =>
+    !setor || String(e.manutencao_setor_id ?? SEM_SETOR) === setor;
+
+  const escolherSetor = (v: string) => {
+    setSetor(v);
+    // Equipamento de outro setor deixa de valer
+    if (v && cab.equipamento && setorDe(cab.equipamento) !== v) set("equipamento", "");
+  };
+  const escolherEquipamento = (v: string) => {
+    set("equipamento", v);
+    if (v && !setor) setSetor(setorDe(v)); // escolheu direto: o setor acompanha
+  };
+
   // Edição: carrega a O.S. existente
   useEffect(() => {
     if (id === null) return;
     lerManutencao(id)
       .then((m: Manutencao) => {
+        setSetor(setorDe(String(m.manutencao_equipamento_id ?? "")));
         setCab({
           equipamento: String(m.manutencao_equipamento_id ?? ""),
           tipo: String(m.manutencao_tipo_id ?? ""),
@@ -346,6 +371,7 @@ export function Formulario({
   if (carregando) return <p className="muted">Carregando…</p>;
 
   const opc = (l: { id: number; descricao: string }[]) => l.map((x) => ({ id: x.id, rotulo: x.descricao }));
+  const equipamentosDoSetor = catalogos.equipamentos.filter((e) => e.ativo !== false && doSetor(e)).length;
   const unidade = (pid: string) => {
     const uid = catalogos.produtos.find((p) => String(p.id) === pid)?.produto_unidade_medida_id;
     return catalogos.unidades.find((u) => u.id === uid)?.descricao ?? "";
@@ -390,19 +416,35 @@ export function Formulario({
       <div data-aba="dados" hidden={aba !== "dados"} className="pagina">
         <Secao icone={<IconeFabrica width={18} height={18} />} cor="azul" titulo="Equipamento e classificação">
           <div className="campos">
-            <Campo rotulo="Equipamento" obrigatorio largo>
-              <Select
-                value={cab.equipamento}
-                onChange={(v) => set("equipamento", v)}
-                obrigatorio
-                opcoes={catalogos.equipamentos
-                  .filter((e) => e.ativo !== false || String(e.id) === cab.equipamento)
-                  .map((e) => ({
-                    id: e.id,
-                    rotulo: `${e.descricao} · ${e.codigo}${e.localizacao ? ` (${e.localizacao})` : ""}`,
-                  }))}
-              />
-            </Campo>
+            {/* Setor e equipamento lado a lado, com pesquisa */}
+            <div className="largo campos-par">
+              <Campo rotulo="Setor">
+                <SelectBusca
+                  value={setor}
+                  onChange={escolherSetor}
+                  vazio="Todos os setores"
+                  opcoes={[
+                    ...opc(catalogos.setores),
+                    ...(catalogos.equipamentos.some((e) => e.manutencao_setor_id == null)
+                      ? [{ id: Number(SEM_SETOR), rotulo: "Sem setor" }]
+                      : []),
+                  ]}
+                />
+              </Campo>
+              <Campo rotulo={setor ? `Equipamento (${equipamentosDoSetor} no setor)` : "Equipamento"} obrigatorio>
+                <SelectBusca
+                  value={cab.equipamento}
+                  onChange={escolherEquipamento}
+                  obrigatorio
+                  opcoes={catalogos.equipamentos
+                    .filter((e) => (e.ativo !== false && doSetor(e)) || String(e.id) === cab.equipamento)
+                    .map((e) => ({
+                      id: e.id,
+                      rotulo: `${e.descricao} · ${e.codigo}${e.localizacao ? ` (${e.localizacao})` : ""}`,
+                    }))}
+                />
+              </Campo>
+            </div>
             <Campo rotulo="Tipo" obrigatorio>
               <Select value={cab.tipo} onChange={(v) => set("tipo", v)} opcoes={opc(catalogos.tipos)} obrigatorio />
             </Campo>
@@ -523,7 +565,7 @@ export function Formulario({
           {itens.map((i) => (
             <div key={i.key} className={`item-form linha${i.remover ? " removido" : ""}`}>
               <Campo rotulo="Material" obrigatorio largo>
-                <Select
+                <SelectBusca
                   value={i.produtoId}
                   obrigatorio={!i.remover}
                   onChange={(v) => {

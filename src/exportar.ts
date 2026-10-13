@@ -1,6 +1,6 @@
 // Exportação das O.S.: planilha (.xlsx) e PDF (via impressão do navegador).
 // Tudo é montado no próprio app — a API da Progete não gera esses arquivos.
-import { nomeUsuario, type Catalogos, type Manutencao } from "./api";
+import { nomeUsuario, type Catalogos, type CatalogosSaida, type Manutencao, type ProdutoSaida } from "./api";
 import { data, hora, hoje } from "./formato";
 import { baixar, gerarXlsx, type Celula, type Planilha } from "./xlsx";
 
@@ -301,3 +301,80 @@ export function htmlDaLista(lista: Manutencao[], c: Catalogos, descricaoFiltro?:
 /** PDF da lista (o que estiver filtrado na tela) */
 export const imprimirLista = (lista: Manutencao[], c: Catalogos, descricaoFiltro?: string) =>
   imprimir(htmlDaLista(lista, c, descricaoFiltro));
+
+/* ------------------------------------------------------------------------- */
+/* Saída de produtos                                                          */
+/* ------------------------------------------------------------------------- */
+
+const nomeCadastro = (o: Record<string, any> | null | undefined) =>
+  o ? o.descricao || o.nome || o.nome_fantasia || o.placa || `#${o.id}` : "";
+
+/** Comprovante de uma saída de produtos, com itens, totais e assinaturas */
+export function htmlDaSaida(s: ProdutoSaida, c: CatalogosSaida): string {
+  const achar = (l: Array<{ id: number }>, id: number | null) => (id ? l.find((x) => x.id === id) : undefined);
+  const nome = (aninhado: any, l: Array<{ id: number }>, id: number | null) => nomeCadastro(aninhado ?? achar(l, id));
+  const itens = s.produto_saida_items ?? [];
+  const vprod = itens.reduce((t, i) => t + (Number(i.qcom) || 0) * (Number(i.vuncom) || 0), 0);
+  const n = (v: unknown) => Number(v) || 0;
+  const total = vprod + n(s.vserv) + n(s.vfrete) + n(s.voutro) - n(s.vdesc);
+  const usuario = s.empresa_usuario?.nome ?? nome(null, c.usuarios, s.empresa_usuario_id);
+  const situacao = s.recusado ? "Recusada" : s.entregue ? "Entregue" : s.liberado ? "Liberada" : s.finalizado ? "Finalizada" : "Pendente";
+  const qtde = (v: unknown) => n(v).toLocaleString("pt-BR", { maximumFractionDigits: 3 });
+
+  const linhas = itens
+    .map((i, k) => {
+      const p = c.produtos.find((x) => x.id === i.produto_id);
+      return `<tr><td class="num">${k + 1}</td><td>${esc(p?.codigo ?? i.produto_id)}</td><td>${esc(i.xprod || p?.descricao)}${p?.codigo_barras ? `<br><small>${esc(p.codigo_barras)}</small>` : ""}</td><td class="num">${qtde(i.qcom)}</td><td class="num">${moedaBR(n(i.vuncom))}</td><td class="num">${moedaBR(n(i.qcom) * n(i.vuncom))}</td></tr>`;
+    })
+    .join("");
+
+  const extras = (
+    [
+      ["Serviços", s.vserv],
+      ["Frete", s.vfrete],
+      ["Outros", s.voutro],
+      ["Desconto", s.vdesc],
+    ] as const
+  )
+    .filter(([, v]) => n(v))
+    .map(([r, v]) => `<div class="total"><span>${r}</span><b>${r === "Desconto" ? "− " : ""}${moedaBR(n(v))}</b></div>`)
+    .join("");
+
+  return documento(
+    `Saída ${s.id}`,
+    `${cabecalho(`Saída de Produtos nº ${s.id}`, `Emitida em ${data(s.dhemi)} · ${situacao}`)}
+    <h2>Requisição</h2>
+    <div class="grade">
+      ${campo("Empresa", nome(null, c.empresas, s.empresa_id))}
+      ${campo("Usuário", usuario)}
+      ${campo("Situação", situacao)}
+      ${campo("Tipo", nome(s.produto_saida_tipo, c.tipos, s.produto_saida_tipo_id))}
+      ${campo("Fluxo", nome(s.produto_saida_fluxo, c.fluxos, s.produto_saida_fluxo_id))}
+      ${campo("Emissão", data(s.dhemi))}
+      ${campo("Equipamento", nome(s.equipamento, c.equipamentos, s.equipamento_id))}
+      ${campo("Veículo", nome(s.veiculo, c.veiculos, s.veiculo_id))}
+      ${campo("Centro de custo", nome(s.lancamento_centro_custo, c.centro_custos, s.lancamento_centro_custo_id))}
+      ${s.recusado ? campo("Motivo da recusa", s.infcancel, true) : ""}
+    </div>
+    <h2>Produtos</h2>
+    ${
+      itens.length
+        ? `<table><thead><tr><th class="num">#</th><th>Código</th><th>Produto</th><th class="num">Qtde</th><th class="num">Unitário</th><th class="num">Total</th></tr></thead><tbody>${linhas}</tbody><tfoot><tr><td colspan="3">${itens.length} item(ns)</td><td class="num">${qtde(itens.reduce((t, i) => t + n(i.qcom), 0))}</td><td></td><td class="num">${moedaBR(vprod)}</td></tr></tfoot></table>`
+        : "<p>Nenhum produto.</p>"
+    }
+    <div class="totais">
+      <div class="total"><span>Produtos</span><b>${moedaBR(vprod)}</b></div>
+      ${extras}
+      <div class="total"><span>Total</span><b>${moedaBR(total)}</b></div>
+    </div>
+    ${s.descprod || s.descserv || s.infcpl ? `<h2>Observações</h2><div class="grade">${s.descprod ? campo("Descrição dos produtos", s.descprod, true) : ""}${s.descserv ? campo("Descrição dos serviços", s.descserv, true) : ""}${s.infcpl ? campo("Informações complementares", s.infcpl, true) : ""}</div>` : ""}
+    <div class="assinaturas">
+      <div class="assinatura">Entregue por</div>
+      <div class="assinatura">Recebido por${usuario ? `<br>${esc(usuario)}` : ""}</div>
+    </div>
+    ${rodape()}`
+  );
+}
+
+/** PDF de uma saída de produtos */
+export const imprimirSaida = (s: ProdutoSaida, c: CatalogosSaida) => imprimir(htmlDaSaida(s, c));

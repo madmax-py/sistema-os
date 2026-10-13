@@ -16,10 +16,16 @@ import { Formulario } from "./components/Formulario";
 import { Layout, type Pagina } from "./components/Layout";
 import { Lista } from "./components/Lista";
 import { Login } from "./components/Login";
+import { DashboardSaidas } from "./components/DashboardSaidas";
+import { Produtos } from "./components/Produtos";
+import { SaidaProdutos } from "./components/SaidaProdutos";
 
 type Tela =
   | { nome: "lista" }
   | { nome: "painel" }
+  | { nome: "saidas" }
+  | { nome: "produtos" }
+  | { nome: "painelSaidas" }
   | { nome: "detalhe"; id: number }
   | { nome: "form"; id: number | null };
 
@@ -84,7 +90,7 @@ export function App() {
   }
 
   const pagina: Pagina | null =
-    tela.nome === "lista" || tela.nome === "painel"
+    tela.nome === "lista" || tela.nome === "painel" || tela.nome === "saidas" || tela.nome === "produtos" || tela.nome === "painelSaidas"
       ? tela.nome
       : tela.nome === "form" && tela.id === null
       ? "nova"
@@ -107,6 +113,9 @@ export function App() {
 
       {catalogos && (
         <div key={"id" in tela ? `${tela.nome}-${tela.id}` : tela.nome} className="fade-up">
+          {tela.nome === "saidas" && <SaidaProdutos />}
+          {tela.nome === "produtos" && <Produtos />}
+          {tela.nome === "painelSaidas" && <DashboardSaidas />}
           {tela.nome === "painel" && (
             <Dashboard catalogos={catalogos} onAbrir={(id) => setTela({ nome: "detalhe", id })} />
           )}

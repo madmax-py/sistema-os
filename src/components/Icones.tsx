@@ -165,3 +165,9 @@ export const IconePlanilha = (p: P) => (
     <path d="M3 9h18M3 15h18M9 3v18M15 3v18" />
   </svg>
 );
+export const IconeBarras = (p: P) => (
+  <svg {...base({ width: 20, height: 20, ...p })}><path d="M3 5v14M7 5v14M10 5v14M14 5v14M17 5v14M21 5v14" /></svg>
+);
+export const IconeImpressora = (p: P) => (
+  <svg {...base(p)}><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><path d="M6 14h12v8H6z" /></svg>
+);

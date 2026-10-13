@@ -42,11 +42,17 @@ e porta padrão, os domínios `progete.com.br`, `profinancas.com.br` e `progete.
 | Conexão | `GET /api/v1.json` → `{"code":"api_ativada"}` |
 | Login | `POST auth/authenticate?email=&password=` |
 | Cadastros (selects) | `GET manutencaos/{equipamentos,tipos,prioridades,fluxos,areas,outros,mantenedores,produtos}`, `GET produto_unidade_medidas` |
+| Setor (filtro de equipamento) | `GET manutencaos/setores` (se falhar, a lista sai dos `manutencao_setor_id` dos equipamentos) |
 | Mantenedor interno | `GET manutencaos/empresa_usuarios` (ou `GET empresa_usuarios`); sem a rota, o select fica vazio |
 | Lista | `GET manutencaos` |
 | Detalhe / Painel | `GET manutencaos` (o `GET manutencaos/:id` não traz equipamento, itens e serviços) |
 | Nova O.S. | `POST manutencaos` |
 | Editar O.S. | `PATCH manutencaos/:id` (itens/serviços com `id` alteram, `_destroy: true` remove, sem `id` cria) |
+| Saída de produtos — cadastros | `GET produto_saidas/{empresas,tipos,fluxos,usuarios,equipamentos,veiculos,centro_custos,produtos}` |
+| Saída de produtos — lista | `GET produto_saidas` (não liberadas do mês atual, todas as empresas; empresa, usuário e situação filtram no navegador). `produtos` vem em páginas de 250; o app busca todas e guarda por 5 minutos |
+| Saída de produtos — CRUD | `GET/PATCH/DELETE produto_saidas/:id`, `POST produto_saidas` (`cliente_id` padrão 776; `empresa_id` vem do formulário) |
+| Painel de saídas | `GET produto_saidas` (todas as páginas) + cadastros da saída; indicadores, gráficos e filtros calculados no navegador (`dashboardSaidas.ts`) |
+| Produtos e etiquetas | `GET produto_saidas/produtos?page=&per_page=250`: 1º acesso baixa todas as páginas em segundo plano e guarda no navegador (`produtosCache.ts`); depois busca e paginação de 50 em 50 são locais, com renovação em segundo plano após 30 min ou no botão Atualizar. Etiquetas em ZPL para Zebra via Zebra Browser Print (`127.0.0.1:9100/9101`), arquivo `.zpl` ou impressão pelo navegador |
 
 A Progete responde **200 mesmo em erro de validação** (`{ campo: [mensagens] }`);
 o app trata sucesso como "resposta com `id`".

@@ -42,7 +42,8 @@ const HOSTS_EXTRAS = (process.env.PROGETE_HOSTS ?? "")
   .map((h) => h.trim().toLowerCase())
   .filter(Boolean);
 
-const CATALOGOS = "equipamentos|tipos|prioridades|fluxos|areas|outros|mantenedores|produtos";
+const CATALOGOS = "equipamentos|setores|tipos|prioridades|fluxos|areas|outros|mantenedores|produtos";
+const CATALOGOS_SAIDA = "empresas|tipos|fluxos|usuarios|equipamentos|veiculos|centro_custos|produtos";
 
 const ROTAS: Array<[RegExp, string[]]> = [
   [/^status$/, ["GET"]],
@@ -50,6 +51,9 @@ const ROTAS: Array<[RegExp, string[]]> = [
   [/^manutencaos$/, ["GET", "POST"]],
   [/^manutencaos\/\d+$/, ["GET", "PATCH"]],
   [new RegExp(`^manutencaos/(${CATALOGOS})$`), ["GET"]],
+  [/^produto_saidas$/, ["GET", "POST"]],
+  [/^produto_saidas\/\d+$/, ["GET", "PATCH", "DELETE"]],
+  [new RegExp(`^produto_saidas/(${CATALOGOS_SAIDA})$`), ["GET"]],
   [/^produto_unidade_medidas$/, ["GET"]],
   [/^(manutencaos\/)?empresa_usuarios$/, ["GET"]],
 ];
