@@ -52,6 +52,17 @@ export interface Produto extends Opcao {
   custo: number;
 }
 
+/** Item de material: produto cadastrado (xprod) ou, no legado, o de manutencao_produtos */
+export function produtoDoItem(i: ManutencaoItem, produtos: Produto[]) {
+  const legado = i.manutencao_produto_id != null ? produtos.find((p) => p.id === i.manutencao_produto_id) : undefined;
+  const id = i.produto_id ?? i.manutencao_produto_id;
+  return {
+    chave: i.produto_id != null ? `p${i.produto_id}` : `m${i.manutencao_produto_id}`,
+    nome: i.xprod || legado?.descricao || `#${id ?? "?"}`,
+    unidadeId: legado?.produto_unidade_medida_id ?? null,
+  };
+}
+
 export interface Catalogos {
   equipamentos: Equipamento[];
   /** setores dos equipamentos (manutencao_setor_id) */
@@ -71,7 +82,11 @@ export interface Catalogos {
 
 export interface ManutencaoItem {
   id: number;
-  manutencao_produto_id: number;
+  /** produto cadastrado (produtos) */
+  produto_id: number | null;
+  xprod: string | null;
+  /** legado: produto da tabela manutencao_produtos */
+  manutencao_produto_id: number | null;
   dt: string;
   qtde: number;
   preco_unit: number;
@@ -150,6 +165,8 @@ export interface ManutencaoPayload {
   desc_atividade: string;
   manutencao_items_attributes: Array<{
     id?: number;
+    produto_id?: number;
+    xprod?: string;
     manutencao_produto_id?: number;
     dt?: string;
     qtde?: number;
@@ -306,6 +323,29 @@ function claims(token: string): Record<string, any> {
   } catch {
     return {};
   }
+}
+
+const normalizar = (v: unknown) =>
+  String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+
+/**
+ * Id (em texto) do usuário logado dentro de uma lista de usuários da empresa,
+ * para vir selecionado por padrão nos formulários. Procura pelo
+ * empresa_usuario_id do token, depois pelo e-mail e por fim pelo nome; "" se não achar.
+ */
+export function idUsuarioLogado(
+  usuarios: Array<{ id: number; nome?: string | null; name?: string | null; email?: string | null }>,
+): string {
+  const sessao = getSessao();
+  if (!sessao) return "";
+  const c = claims(sessao.token);
+  const porId = usuarios.find((u) => c.empresa_usuario_id != null && String(u.id) === String(c.empresa_usuario_id));
+  const email = normalizar(c.email ?? sessao.email);
+  const porEmail = email ? usuarios.find((u) => normalizar(u.email) === email) : undefined;
+  const nome = normalizar(sessao.nome);
+  const porNome = nome ? usuarios.find((u) => normalizar(u.nome ?? u.name) === nome) : undefined;
+  const achado = porId ?? porEmail ?? porNome;
+  return achado ? String(achado.id) : "";
 }
 
 /* ------------------------------------------------------------------------- */
@@ -490,6 +530,8 @@ export interface ProdutoSaida {
   empresa_usuario_id: number | null;
   produto_saida_tipo_id: number | null;
   produto_saida_fluxo_id: number | null;
+  /** 1 = Saída, 0 = Entrada (pode vir na saída ou no cadastro do tipo) */
+  tipo?: number | string | null;
   cliente_id: number | null;
   colaborador_id: number | null;
   equipamento_id: number | null;
@@ -510,7 +552,7 @@ export interface ProdutoSaida {
   infcancel: string | null;
   infcpl: string | null;
   empresa_usuario?: { id: number; nome: string };
-  produto_saida_tipo?: Opcao;
+  produto_saida_tipo?: TipoSaida;
   produto_saida_fluxo?: Opcao;
   colaborador?: Record<string, unknown> | null;
   equipamento?: Record<string, unknown> | null;
@@ -525,6 +567,8 @@ export interface ProdutoSaidaPayload {
   empresa_usuario_id?: number | null;
   produto_saida_tipo_id?: number | null;
   produto_saida_fluxo_id?: number | null;
+  /** 1 = Saída, 0 = Entrada */
+  tipo?: number;
   cliente_id?: number | null;
   equipamento_id?: number | null;
   colaborador_id?: number | null;
@@ -554,15 +598,39 @@ export interface ProdutoSaidaPayload {
   }>;
 }
 
+/** Tipo de saída: "tipo" diz se o lançamento é entrada (0) ou saída (1) */
+export interface TipoSaida extends Opcao {
+  tipo?: number | string | null;
+}
+
 export interface CatalogosSaida {
   empresas: Array<{ id: number; nome_fantasia: string }>;
-  tipos: Opcao[];
+  tipos: TipoSaida[];
   fluxos: Opcao[];
   usuarios: Array<{ id: number; nome: string }>;
   equipamentos: Opcao[];
   veiculos: Opcao[];
   centro_custos: Opcao[];
   produtos: Array<Record<string, any> & { id: number; descricao: string }>;
+}
+
+export type Movimento = "entrada" | "saida";
+
+/** 1 = Saída, 0 = Entrada; aceita número, texto ("1") ou o rótulo ("1=Saída") */
+export function lerMovimento(v: unknown): Movimento | null {
+  if (v == null || v === "") return null;
+  if (typeof v === "boolean") return v ? "saida" : "entrada";
+  const t = String(v).trim().charAt(0);
+  return t === "1" ? "saida" : t === "0" ? "entrada" : null;
+}
+
+/** Entrada ou saída: campo "tipo" da própria saída ou, na falta dele, do cadastro do tipo */
+export function movimento(s: ProdutoSaida, catalogos?: CatalogosSaida): Movimento | null {
+  return (
+    lerMovimento(s.tipo) ??
+    lerMovimento(s.produto_saida_tipo?.tipo) ??
+    lerMovimento(catalogos?.tipos.find((t) => t.id === s.produto_saida_tipo_id)?.tipo)
+  );
 }
 
 /** Uma página da rota de produtos (o cache completo fica em produtosCache.ts) */

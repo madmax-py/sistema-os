@@ -806,6 +806,7 @@ html.dark .dica::after { background: #f8fafc; color: #17181e; }
   border-radius: 0.75rem 0 0 0.75rem;
 }
 .campo-prefixo input { border-radius: 0 0.75rem 0.75rem 0; }
+.campo-prefixo select { width: auto; flex-shrink: 0; font-size: 0.875rem; color: var(--muted); background-color: var(--borda-2); border-right: none; border-radius: 0.75rem 0 0 0.75rem; }
 .dica-url { margin: -0.25rem 0 0; font-size: 0.78rem; color: var(--muted); }
 code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8em; overflow-wrap: anywhere; }
 .verificacao { display: flex; flex-direction: column; gap: 0.25rem; padding: 0.8rem 1rem; border-radius: 0.875rem; border: 1px solid; font-size: 0.85rem; }

@@ -1,0 +1,439 @@
+{
+	"info": {
+		"_postman_id": "34c8794d-dab4-4715-a4a6-a5131d06bd16",
+		"name": "orderm_de_servico",
+		"description": "API for ProVendas (aka SalesForce)",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "53156941",
+		"_collection_link": "https://passthelink-6424353.postman.co/workspace/miel's-Workspace~aa72b720-b614-4e88-8bbc-05b309d7e403/collection/53156941-34c8794d-dab4-4715-a4a6-a5131d06bd16?action=share&source=collection_link&creator=53156941"
+	},
+	"item": [
+		{
+			"name": "auth",
+			"item": [
+				{
+					"name": "teste",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"(function storeJWT() {\r",
+									"    if(pm.response.code === 200) {\r",
+									"        pm.collectionVariables.set(\"jwt\", pm.response.json().token);\r",
+									"    }\r",
+									"})();"
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{domain}}/auth/authenticate?email=mario@progete.com.br&password=telles",
+							"host": [
+								"{{domain}}"
+							],
+							"path": [
+								"auth",
+								"authenticate"
+							],
+							"query": [
+								{
+									"key": "email",
+									"value": "mario@progete.com.br"
+								},
+								{
+									"key": "password",
+									"value": "telles"
+								}
+							]
+						},
+						"description": "  # Ação para realizar autenticacao na plataforma"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "api test",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{domain}}.json",
+					"host": [
+						"{{domain}}",
+						"json"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "equipamentos",
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"method": "GET",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://teste.progete.com.br/api/v1/manutencaos/equipamentos",
+					"protocol": "https",
+					"host": [
+						"teste",
+						"progete",
+						"com",
+						"br"
+					],
+					"path": [
+						"api",
+						"v1",
+						"manutencaos",
+						"equipamentos"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "manutencao",
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"method": "GET",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://teste.progete.com.br/api/v1/manutencaos",
+					"protocol": "https",
+					"host": [
+						"teste",
+						"progete",
+						"com",
+						"br"
+					],
+					"path": [
+						"api",
+						"v1",
+						"manutencaos"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "tipos",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://teste.progete.com.br/api/v1/manutencaos/tipos",
+					"protocol": "https",
+					"host": [
+						"teste",
+						"progete",
+						"com",
+						"br"
+					],
+					"path": [
+						"api",
+						"v1",
+						"manutencaos",
+						"tipos"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "prioridades",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://teste.progete.com.br/api/v1/manutencaos/prioridades",
+					"protocol": "https",
+					"host": [
+						"teste",
+						"progete",
+						"com",
+						"br"
+					],
+					"path": [
+						"api",
+						"v1",
+						"manutencaos",
+						"prioridades"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "fluxos",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://teste.progete.com.br/api/v1/manutencaos/fluxos",
+					"protocol": "https",
+					"host": [
+						"teste",
+						"progete",
+						"com",
+						"br"
+					],
+					"path": [
+						"api",
+						"v1",
+						"manutencaos",
+						"fluxos"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "areas",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://teste.progete.com.br/api/v1/manutencaos/areas",
+					"protocol": "https",
+					"host": [
+						"teste",
+						"progete",
+						"com",
+						"br"
+					],
+					"path": [
+						"api",
+						"v1",
+						"manutencaos",
+						"areas"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "outros",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://teste.progete.com.br/api/v1/manutencaos/outros",
+					"protocol": "https",
+					"host": [
+						"teste",
+						"progete",
+						"com",
+						"br"
+					],
+					"path": [
+						"api",
+						"v1",
+						"manutencaos",
+						"outros"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "produtos",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://teste.progete.com.br/api/v1/manutencaos/produtos",
+					"protocol": "https",
+					"host": [
+						"teste",
+						"progete",
+						"com",
+						"br"
+					],
+					"path": [
+						"api",
+						"v1",
+						"manutencaos",
+						"produtos"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "mantenedores",
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"method": "GET",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://teste.progete.com.br/api/v1/manutencaos/mantenedores",
+					"protocol": "https",
+					"host": [
+						"teste",
+						"progete",
+						"com",
+						"br"
+					],
+					"path": [
+						"api",
+						"v1",
+						"manutencaos",
+						"mantenedores"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "create",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"manutencao\": {\n        \"empresa_usuario_id\": 1,\n        \"manutencao_equipamento_id\": 1,\n        \"manutencao_outro_id\": 1,\n        \"manutencao_tipo_id\": 1,\n        \"manutencao_prioridade_id\": 1,\n        \"manutencao_fluxo_id\": 1,\n        \"manutencao_area_id\": 2,\n        \"dt_programada\": \"2026-09-22\",\n        \"dt_finalizada\": \"2026-09-22\",\n        \"solicitante\": \"Nome do solicitante\",\n        \"descricao_defeito\": \"Descrição do defeito\",\n        \"cod_ficha_producao\": \"001\",\n        \"infad\": \"Informações adicionais\",\n        \"dt_inicio\": \"2026-09-22\",\n        \"hr_inicio\": \"08:00\",\n        \"dt_termino\": \"2026-09-22\",\n        \"hr_termino\": \"12:00\",\n        \"desc_atividade\": \"Apertar os parafusos\",\n        \"recorrente\": false,\n        \"vezes_recorrente\": 0,\n        \"dias_recorrente\": 0,\n        \"manutencao_items_attributes\": [\n            {\n                \"manutencao_produto_id\": 1,\n                \"dt\": \"2026-09-22\",\n                \"qtde\": 1.0,\n                \"preco_unit\": 10.0,\n                \"nr_doc\": \"\"\n            }\n        ],\n        \"manutencao_servicos_attributes\": [\n            {\n                \"manutencao_mantenedor_id\": 1,\n                \"dt_inicio\": \"2026-09-22\",\n                \"hr_inicio\": \"08:00\",\n                \"dt_termino\": \"2026-09-22\",\n                \"hr_termino\": \"12:00\",\n                \"desc_atividade\": \"Apertar os parafusos\",\n                \"nr_doc\": \"\",\n                \"vlcusto\": 0.0\n            }\n        ]\n    }\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://teste.progete.com.br/api/v1/manutencaos",
+					"protocol": "https",
+					"host": [
+						"teste",
+						"progete",
+						"com",
+						"br"
+					],
+					"path": [
+						"api",
+						"v1",
+						"manutencaos"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{jwt}}",
+				"type": "string"
+			}
+		]
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"requests": {},
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"packages": {},
+				"requests": {},
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "jwt",
+			"value": "",
+			"disabled": true
+		},
+		{
+			"key": "domain",
+			"value": "https://www.progete.com.br/api/v1",
+			"disabled": true
+		},
+		{
+			"key": "domain",
+			"value": "",
+			"disabled": true
+		},
+		{
+			"key": "domain",
+			"value": "",
+			"disabled": true
+		},
+		{
+			"key": "domain",
+			"value": ""
+		},
+		{
+			"key": "domain",
+			"value": "",
+			"disabled": true
+		},
+		{
+			"key": "jwt",
+			"value": ""
+		}
+	]
+}

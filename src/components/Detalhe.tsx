@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { lerManutencao, nomeUsuario, type Catalogos, type Manutencao } from "../api";
+import { lerManutencao, nomeUsuario, produtoDoItem, type Catalogos, type Manutencao } from "../api";
 import { imprimirOS } from "../exportar";
 import { data, hora, moeda } from "../formato";
 import { Abas, type AbaOS } from "./Abas";
@@ -52,7 +52,6 @@ export function Detalhe({
     lerManutencao(id).then(setM).catch((e) => setErro(e.message));
   }, [id]);
 
-  const produto = (pid: number) => catalogos.produtos.find((p) => p.id === pid);
   const unidade = (uid: number | null) => catalogos.unidades.find((u) => u.id === uid)?.descricao ?? "";
   const mantenedor = (mid: number) => catalogos.mantenedores.find((x) => x.id === mid)?.nome ?? `#${mid}`;
 
@@ -155,13 +154,13 @@ export function Detalhe({
                 </thead>
                 <tbody>
                   {itens.map((i) => {
-                    const p = produto(i.manutencao_produto_id);
+                    const p = produtoDoItem(i, catalogos.produtos);
                     return (
                       <tr key={i.id}>
-                        <td>{p?.descricao ?? `#${i.manutencao_produto_id}`}</td>
+                        <td>{p.nome}</td>
                         <td>{data(i.dt)}</td>
                         <td>
-                          {i.qtde} {unidade(p?.produto_unidade_medida_id ?? null)}
+                          {i.qtde} {unidade(p.unidadeId)}
                         </td>
                         <td>{moeda(i.preco_unit)}</td>
                         <td>{moeda(i.qtde * i.preco_unit)}</td>

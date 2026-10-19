@@ -2,7 +2,7 @@
 // (com itens e serviços aninhados) + catálogos. Nada é armazenado.
 // Horas "locais" = execução interna da O.S. (empresa_usuario, dt/hr início e
 // término na própria manutenção); horas de "terceiros" = manutencao_servicos.
-import { nomeUsuario, type Catalogos, type Manutencao, type ManutencaoServico } from "./api";
+import { nomeUsuario, produtoDoItem, type Catalogos, type Manutencao, type ManutencaoServico } from "./api";
 import { hoje, hora } from "./formato";
 
 export type Periodo = "todos" | "30d" | "90d" | "12m" | "ano";
@@ -269,12 +269,12 @@ export function calcular(todas: Manutencao[], catalogos: Catalogos, f: Filtro): 
     .sort((a, b) => b.horas - a.horas || b.servicos - a.servicos);
 
   // Materiais
-  const mapaMat = new Map<number, LinhaMaterial & { osSet: Set<number> }>();
+  const mapaMat = new Map<string, LinhaMaterial & { osSet: Set<number> }>();
   for (const { os, i } of itens) {
-    const p = catalogos.produtos.find((x) => x.id === i.manutencao_produto_id);
-    const unidade = catalogos.unidades.find((u) => u.id === p?.produto_unidade_medida_id)?.descricao ?? "";
-    const l = mapaMat.get(i.manutencao_produto_id) ?? {
-      nome: p?.descricao ?? `#${i.manutencao_produto_id}`,
+    const p = produtoDoItem(i, catalogos.produtos);
+    const unidade = catalogos.unidades.find((u) => u.id === p.unidadeId)?.descricao ?? "";
+    const l = mapaMat.get(p.chave) ?? {
+      nome: p.nome,
       unidade,
       qtde: 0,
       custo: 0,
@@ -284,7 +284,7 @@ export function calcular(todas: Manutencao[], catalogos: Catalogos, f: Filtro): 
     l.qtde += i.qtde ?? 0;
     l.custo += (i.qtde ?? 0) * (i.preco_unit ?? 0);
     l.osSet.add(os);
-    mapaMat.set(i.manutencao_produto_id, l);
+    mapaMat.set(p.chave, l);
   }
   const materiais = [...mapaMat.values()]
     .map(({ osSet, ...l }) => ({ ...l, os: osSet.size }))

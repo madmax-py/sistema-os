@@ -171,3 +171,6 @@ export const IconeBarras = (p: P) => (
 export const IconeImpressora = (p: P) => (
   <svg {...base(p)}><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><path d="M6 14h12v8H6z" /></svg>
 );
+export const IconeSetas = (p: P) => (
+  <svg {...base(p)}><path d="M7 21V3M3 7l4-4 4 4M17 3v18M21 17l-4 4-4-4" /></svg>
+);

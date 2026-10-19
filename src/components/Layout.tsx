@@ -3,7 +3,7 @@ import type { Sessao } from "../api";
 import { Logo } from "./Logo";
 import { IconeBarras, IconeCaixa, IconeGrafico, IconeLista, IconeLua, IconeMais, IconeMenu, IconeSair, IconeSol } from "./Icones";
 
-export type Pagina = "lista" | "nova" | "painel" | "saidas" | "painelSaidas" | "produtos";
+export type Pagina = "lista" | "nova" | "painel" | "painelSaidas" | "produtos" | "movimentos";
 
 function useTema() {
   const [escuro, setEscuro] = useState(() => document.documentElement.classList.contains("dark"));
@@ -38,8 +38,8 @@ export function Layout({
     { id: "lista", rotulo: "Ordens de Serviço", icone: <IconeLista width={16} height={16} /> },
     { id: "nova", rotulo: "Nova O.S.", icone: <IconeMais width={16} height={16} /> },
     { id: "painel", rotulo: "Painel de Indicadores", icone: <IconeGrafico width={16} height={16} /> },
-    { id: "saidas", rotulo: "Saída de Produtos", icone: <IconeCaixa width={16} height={16} /> },
-    { id: "painelSaidas", rotulo: "Painel de Saídas", icone: <IconeGrafico width={16} height={16} /> },
+    { id: "movimentos", rotulo: "Entradas e Saídas", icone: <IconeCaixa width={16} height={16} /> },
+    { id: "painelSaidas", rotulo: "Painel de Entradas e Saídas", icone: <IconeGrafico width={16} height={16} /> },
     { id: "produtos", rotulo: "Produtos e Etiquetas", icone: <IconeBarras width={16} height={16} /> },
   ];
 

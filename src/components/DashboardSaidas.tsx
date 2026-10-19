@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { carregarCatalogosSaida, listarTodasProdutoSaidas, type CatalogosSaida, type ProdutoSaida } from "../api";
+import {
+  carregarCatalogosSaida,
+  listarTodasProdutoSaidas,
+  movimento,
+  type CatalogosSaida,
+  type Movimento,
+  type ProdutoSaida,
+} from "../api";
 import {
   calcularSaidas,
   FILTRO_SAIDAS_VAZIO,
@@ -54,10 +61,30 @@ function FiltroDestino({ rotulo, vazio, valor, opcoes, onChange }: {
   return (
     <label>
       <span>{rotulo}</span>
-      <SelectBusca value={valor} onChange={onChange} opcoes={opcoes} vazio={opcoes.length ? vazio : "Nenhum nas saídas"} />
+      <SelectBusca value={valor} onChange={onChange} opcoes={opcoes} vazio={opcoes.length ? vazio : "Nenhum nos lançamentos"} />
     </label>
   );
 }
+
+type Aba = Movimento | "todas";
+
+const ABAS: { id: Aba; rotulo: string; cor: string }[] = [
+  { id: "saida", rotulo: "Saídas", cor: "ambar" },
+  { id: "entrada", rotulo: "Entradas", cor: "verde" },
+  { id: "todas", rotulo: "Tudo", cor: "azul" },
+];
+
+/** Textos do painel conforme a aba (entradas, saídas ou tudo junto) */
+const TEXTOS = {
+  saida: { Plural: "Saídas", plural: "saídas", um: "saída", da: "da saída", nenhuma: "Nenhuma saída", ultimas: "Últimas saídas", nas: "nas saídas", liberadas: "não liberadas", acao: "retirados" },
+  entrada: { Plural: "Entradas", plural: "entradas", um: "entrada", da: "da entrada", nenhuma: "Nenhuma entrada", ultimas: "Últimas entradas", nas: "nas entradas", liberadas: "não liberadas", acao: "recebidos" },
+  todas: { Plural: "Lançamentos", plural: "lançamentos", um: "lançamento", da: "do lançamento", nenhuma: "Nenhum lançamento", ultimas: "Últimos lançamentos", nas: "nos lançamentos", liberadas: "não liberados", acao: "movimentados" },
+};
+
+const PILULA_MOV: Record<Movimento, { texto: string; cor: string }> = {
+  entrada: { texto: "Entrada", cor: "verde" },
+  saida: { texto: "Saída", cor: "ambar" },
+};
 
 const qtdFmt = (v: number) => v.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
 
@@ -68,6 +95,8 @@ export function DashboardSaidas() {
   const [carregando, setCarregando] = useState(false);
   const [filtro, setFiltro] = useState<FiltroSaidas>(FILTRO_SAIDAS_VAZIO);
   const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
+  const [aba, setAba] = useState<Aba>("saida");
+  const t = TEXTOS[aba];
 
   const carregar = () => {
     setErro(null);
@@ -85,20 +114,35 @@ export function DashboardSaidas() {
         );
         setAtualizadoEm(new Date());
       })
-      .catch((e) => setErro(`Não foi possível carregar as saídas: ${e.message}`))
+      .catch((e) => setErro(`Não foi possível carregar os lançamentos: ${e.message}`))
       .finally(() => setCarregando(false));
   };
   useEffect(carregar, []);
 
-  const ind = useMemo(() => (lista && cad ? calcularSaidas(lista, cad, filtro) : null), [lista, cad, filtro]);
+  // Separa pelo campo "tipo" (0 = Entrada, 1 = Saída); sem ele, conta como saída
+  const movs = useMemo(
+    () => (lista && cad ? lista.map((s) => ({ s, mov: movimento(s, cad) ?? "saida" })) : null),
+    [lista, cad]
+  );
+  const contagem = useMemo(
+    () => ({
+      saida: movs?.filter((x) => x.mov === "saida").length ?? 0,
+      entrada: movs?.filter((x) => x.mov === "entrada").length ?? 0,
+      todas: movs?.length ?? 0,
+    }),
+    [movs]
+  );
+  const daAba = useMemo(() => movs?.filter((x) => aba === "todas" || x.mov === aba).map((x) => x.s) ?? null, [movs, aba]);
 
-  // Opções dos filtros: só o que aparece nas saídas carregadas
+  const ind = useMemo(() => (daAba && cad ? calcularSaidas(daAba, cad, filtro) : null), [daAba, cad, filtro]);
+
+  // Opções dos filtros: só o que aparece nos lançamentos da aba
   const opcoes = useMemo(() => {
     const unicos = (pares: Array<[number | null | undefined, string]>) =>
       [...new Map(pares.filter(([id]) => id != null).map(([id, nome]) => [id as number, nome])).entries()]
         .map(([id, rotulo]) => ({ id, rotulo }))
         .sort((a, b) => a.rotulo.localeCompare(b.rotulo, "pt-BR"));
-    const l = lista ?? [];
+    const l = daAba ?? [];
     return {
       empresas: unicos(l.map((s) => [s.empresa_id, cad?.empresas.find((e) => e.id === s.empresa_id)?.nome_fantasia || `Empresa #${s.empresa_id}`])),
       usuarios: unicos(l.map((s) => [s.empresa_usuario_id, s.empresa_usuario?.nome ?? `#${s.empresa_usuario_id}`])),
@@ -109,14 +153,14 @@ export function DashboardSaidas() {
         l.map((s) => [s.lancamento_centro_custo_id, nomeDestino(s.lancamento_centro_custo, cad?.centro_custos, s.lancamento_centro_custo_id)])
       ),
     };
-  }, [lista, cad]);
+  }, [daAba, cad]);
 
   const recentes = useMemo(
     () =>
-      [...(lista ?? [])]
+      [...(daAba ?? [])]
         .sort((a, b) => String(b.dhemi).localeCompare(String(a.dhemi)) || b.id - a.id)
         .slice(0, 10),
-    [lista]
+    [daAba]
   );
 
   if (erro && !lista) {
@@ -126,7 +170,7 @@ export function DashboardSaidas() {
       </div>
     );
   }
-  if (!ind || !cad) return <p className="muted">Calculando indicadores das saídas…</p>;
+  if (!ind || !cad) return <p className="muted">Calculando indicadores…</p>;
 
   const filtrado = Object.values(filtro).some(Boolean);
   const set = <K extends keyof FiltroSaidas>(k: K, v: FiltroSaidas[K]) => setFiltro((f) => ({ ...f, [k]: v }));
@@ -135,7 +179,7 @@ export function DashboardSaidas() {
       ? ind.primeira === ind.ultima
         ? data(ind.primeira)
         : `${data(ind.primeira)} a ${data(ind.ultima)}`
-      : "sem saídas";
+      : `sem ${t.plural}`;
   const porQtde = [...ind.produtos].sort((a, b) => b.qtde - a.qtde).map((p) => ({ rotulo: p.nome, valor: p.qtde }));
   const porValor = [...ind.produtos].sort((a, b) => b.valor - a.valor).map((p) => ({ rotulo: p.nome, valor: p.valor }));
 
@@ -148,9 +192,9 @@ export function DashboardSaidas() {
           </div>
           <div>
             <p className="sobre">Estoque · Indicadores</p>
-            <h1>Painel de Saídas</h1>
+            <h1>Painel de Entradas e Saídas</h1>
             <p className="desc">
-              Saídas não liberadas do mês · {periodo}
+              {t.Plural} {t.liberadas} do mês · {periodo}
               {atualizadoEm && ` · atualizado às ${atualizadoEm.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`}
             </p>
           </div>
@@ -158,7 +202,7 @@ export function DashboardSaidas() {
         <div className="estatisticas">
           <div className="estatistica azul">
             <b>{num(ind.total)}</b>
-            <span>Saídas</span>
+            <span>{t.Plural}</span>
           </div>
           <div className="estatistica ambar">
             <b>{moedaCurta(ind.valorTotal)}</b>
@@ -169,6 +213,25 @@ export function DashboardSaidas() {
             <span>Volumes</span>
           </div>
         </div>
+      </div>
+
+      <div className="abas" role="tablist">
+        {ABAS.map((a) => (
+          <button
+            key={a.id}
+            type="button"
+            role="tab"
+            aria-selected={aba === a.id}
+            className={`${a.cor}${aba === a.id ? " ativa" : ""}`}
+            onClick={() => {
+              setAba(a.id);
+              set("tipoId", "");
+            }}
+          >
+            <span className="texto-aba">{a.rotulo}</span>
+            <span className="contador">{contagem[a.id]}</span>
+          </button>
+        ))}
       </div>
 
       <div className="card filtros">
@@ -236,7 +299,7 @@ export function DashboardSaidas() {
       {/* Números principais */}
       <div className="tiles">
         <Tile
-          rotulo="Saídas"
+          rotulo={t.Plural}
           valor={num(ind.total)}
           detalhe={filtrado ? `de ${num(ind.totalGeral)} carregadas` : `${num(ind.hoje)} hoje · ${num(ind.ultimos7)} nos últimos 7 dias`}
           icone={<IconeLista width={18} height={18} />}
@@ -250,7 +313,7 @@ export function DashboardSaidas() {
           cor="ambar"
         />
         <Tile
-          rotulo="Valor médio por saída"
+          rotulo={`Valor médio por ${t.um}`}
           valor={moeda(ind.ticketMedio)}
           detalhe={ind.descontos ? `${moeda(ind.descontos)} em descontos` : "sem descontos"}
           icone={<IconeCaixa width={18} height={18} />}
@@ -259,14 +322,14 @@ export function DashboardSaidas() {
         <Tile
           rotulo="Itens lançados"
           valor={num(ind.itens)}
-          detalhe={`${qtdFmt(ind.volumes)} volumes · ${num(ind.itensPorSaida, 1)} item(ns) por saída`}
+          detalhe={`${qtdFmt(ind.volumes)} volumes · ${num(ind.itensPorSaida, 1)} item(ns) por ${t.um}`}
           icone={<IconeBarras width={18} height={18} />}
           cor="verde"
         />
         <Tile
           rotulo="Produtos diferentes"
           valor={num(ind.produtosDistintos)}
-          detalhe="retirados nas saídas"
+          detalhe={`${t.acao} ${t.nas}`}
           icone={<IconeBarras width={18} height={18} />}
           cor="verde"
         />
@@ -295,14 +358,14 @@ export function DashboardSaidas() {
 
       {/* Evolução */}
       <div className="grade-painel duas">
-        <Secao icone={<IconeCalendario width={18} height={18} />} cor="azul" titulo="Saídas por dia">
-          {ind.porDia.length ? <Colunas dados={ind.porDia} /> : <div className="vazio">Sem saídas.</div>}
+        <Secao icone={<IconeCalendario width={18} height={18} />} cor="azul" titulo={`${t.Plural} por dia`}>
+          {ind.porDia.length ? <Colunas dados={ind.porDia} /> : <div className="vazio">Sem {t.plural}.</div>}
         </Secao>
         <Secao icone={<IconeCaixa width={18} height={18} />} cor="ambar" titulo="Valor por dia">
           {ind.valorPorDia.length ? (
             <Colunas dados={ind.valorPorDia} formato={moedaCurta} />
           ) : (
-            <div className="vazio">Sem saídas.</div>
+            <div className="vazio">Sem {t.plural}.</div>
           )}
         </Secao>
       </div>
@@ -319,7 +382,7 @@ export function DashboardSaidas() {
             vazio="Nenhum valor lançado."
           />
         </Secao>
-        <Secao icone={<IconeCalendario width={18} height={18} />} cor="violeta" titulo="Saídas por dia da semana">
+        <Secao icone={<IconeCalendario width={18} height={18} />} cor="violeta" titulo={`${t.Plural} por dia da semana`}>
           <Colunas dados={ind.porDiaSemana} />
         </Secao>
       </div>
@@ -327,41 +390,41 @@ export function DashboardSaidas() {
       {/* Distribuições */}
       <div className="grade-painel tres">
         <Secao icone={<IconeAlerta width={18} height={18} />} cor="ambar" titulo="Por situação">
-          <BarrasH dados={ind.porSituacao} vazio="Sem saídas." />
+          <BarrasH dados={ind.porSituacao} vazio={`Sem ${t.plural}.`} />
         </Secao>
         <Secao icone={<IconeDocumento width={18} height={18} />} cor="azul" titulo="Por tipo">
-          <BarrasH dados={ind.porTipo} vazio="Sem saídas." />
+          <BarrasH dados={ind.porTipo} vazio={`Sem ${t.plural}.`} />
         </Secao>
         <Secao icone={<IconeAtualizar width={18} height={18} />} cor="verde" titulo="Por fluxo">
-          <BarrasH dados={ind.porFluxo} vazio="Sem saídas." />
+          <BarrasH dados={ind.porFluxo} vazio={`Sem ${t.plural}.`} />
         </Secao>
-        <Secao icone={<IconeUsuarios width={18} height={18} />} cor="azul" titulo="Saídas por usuário">
-          <BarrasH dados={ind.porUsuario} vazio="Sem saídas." />
+        <Secao icone={<IconeUsuarios width={18} height={18} />} cor="azul" titulo={`${t.Plural} por usuário`}>
+          <BarrasH dados={ind.porUsuario} vazio={`Sem ${t.plural}.`} />
         </Secao>
         <Secao icone={<IconeUsuarios width={18} height={18} />} cor="ambar" titulo="Valor por usuário">
-          <BarrasH dados={ind.valorPorUsuario} formato={moeda} vazio="Sem saídas." />
+          <BarrasH dados={ind.valorPorUsuario} formato={moeda} vazio={`Sem ${t.plural}.`} />
         </Secao>
         <Secao icone={<IconeFabrica width={18} height={18} />} cor="violeta" titulo="Por destino">
-          <BarrasH dados={ind.porDestino} vazio="Sem saídas." />
+          <BarrasH dados={ind.porDestino} vazio={`Sem ${t.plural}.`} />
         </Secao>
       </div>
 
       {/* Destinos */}
       <div className="grade-painel tres">
         <Secao icone={<IconeFabrica width={18} height={18} />} cor="azul" titulo="Equipamentos (valor)">
-          <BarrasH dados={ind.equipamentos} formato={moeda} vazio="Nenhuma saída para equipamento." />
+          <BarrasH dados={ind.equipamentos} formato={moeda} vazio={`${t.nenhuma} para equipamento.`} />
         </Secao>
         <Secao icone={<IconeFabrica width={18} height={18} />} cor="verde" titulo="Veículos (valor)">
-          <BarrasH dados={ind.veiculos} formato={moeda} vazio="Nenhuma saída para veículo." />
+          <BarrasH dados={ind.veiculos} formato={moeda} vazio={`${t.nenhuma} para veículo.`} />
         </Secao>
         <Secao icone={<IconeFabrica width={18} height={18} />} cor="violeta" titulo="Centros de custo (valor)">
-          <BarrasH dados={ind.centrosCusto} formato={moeda} vazio="Nenhuma saída para centro de custo." />
+          <BarrasH dados={ind.centrosCusto} formato={moeda} vazio={`${t.nenhuma} para centro de custo.`} />
         </Secao>
       </div>
 
       {/* Produtos */}
       <div className="grade-painel duas">
-        <Secao icone={<IconeBarras width={18} height={18} />} cor="verde" titulo="Produtos mais retirados (quantidade)">
+        <Secao icone={<IconeBarras width={18} height={18} />} cor="verde" titulo={`Produtos mais ${t.acao} (quantidade)`}>
           <BarrasH dados={porQtde} formato={qtdFmt} limite={10} vazio="Nenhum produto." />
         </Secao>
         <Secao icone={<IconeCaixa width={18} height={18} />} cor="ambar" titulo="Produtos de maior valor">
@@ -375,10 +438,10 @@ export function DashboardSaidas() {
         </Secao>
       )}
 
-      {/* Últimas saídas */}
-      <Secao icone={<IconeLista width={18} height={18} />} cor="azul" titulo="Últimas saídas">
+      {/* Últimos lançamentos da aba */}
+      <Secao icone={<IconeLista width={18} height={18} />} cor="azul" titulo={t.ultimas}>
         {recentes.length === 0 ? (
-          <div className="vazio">Nenhuma saída.</div>
+          <div className="vazio">{t.nenhuma}.</div>
         ) : (
           <div className="tabela-wrap">
             <table>
@@ -387,6 +450,7 @@ export function DashboardSaidas() {
                   <th>Nº</th>
                   <th>Emissão</th>
                   <th>Usuário</th>
+                  {aba === "todas" && <th>Movimento</th>}
                   <th>Tipo</th>
                   <th>Itens</th>
                   <th className="num-col">Valor</th>
@@ -397,11 +461,17 @@ export function DashboardSaidas() {
               <tbody>
                 {recentes.map((s) => {
                   const sit = situacaoDe(s);
+                  const mov = PILULA_MOV[movimento(s, cad) ?? "saida"];
                   return (
                     <tr key={s.id}>
                       <td className="num">#{s.id}</td>
                       <td>{data(s.dhemi)}</td>
                       <td>{s.empresa_usuario?.nome ?? "—"}</td>
+                      {aba === "todas" && (
+                        <td>
+                          <span className={`pilula ${mov.cor}`}>{mov.texto}</span>
+                        </td>
+                      )}
                       <td>{s.produto_saida_tipo?.descricao ?? "—"}</td>
                       <td>{s.produto_saida_items?.length ?? 0}</td>
                       <td className="num-col">{moeda(valorTotal(s))}</td>
@@ -412,8 +482,8 @@ export function DashboardSaidas() {
                         <button
                           className="icone pequeno"
                           onClick={() => imprimirSaida(s, cad)}
-                          title={`Gerar PDF da saída nº ${s.id}`}
-                          aria-label={`Gerar PDF da saída nº ${s.id}`}
+                          title={`Gerar PDF ${t.da} nº ${s.id}`}
+                          aria-label={`Gerar PDF ${t.da} nº ${s.id}`}
                         >
                           <IconePdf width={16} height={16} />
                         </button>

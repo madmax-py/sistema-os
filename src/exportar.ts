@@ -1,6 +1,6 @@
 // Exportação das O.S.: planilha (.xlsx) e PDF (via impressão do navegador).
 // Tudo é montado no próprio app — a API da Progete não gera esses arquivos.
-import { nomeUsuario, type Catalogos, type CatalogosSaida, type Manutencao, type ProdutoSaida } from "./api";
+import { movimento, nomeUsuario, produtoDoItem, type Catalogos, type CatalogosSaida, type Manutencao, type ProdutoSaida } from "./api";
 import { data, hora, hoje } from "./formato";
 import { baixar, gerarXlsx, type Celula, type Planilha } from "./xlsx";
 
@@ -80,10 +80,10 @@ export function planilhasDasOS(lista: Manutencao[], c: Catalogos): Planilha[] {
     ]);
 
     for (const i of itens) {
-      const p = c.produtos.find((x) => x.id === i.manutencao_produto_id);
+      const p = produtoDoItem(i, c.produtos);
       materiais.push([
-        m.id, n.equipamento, p?.descricao ?? `#${i.manutencao_produto_id}`,
-        c.unidades.find((u) => u.id === p?.produto_unidade_medida_id)?.descricao ?? "",
+        m.id, n.equipamento, p.nome,
+        c.unidades.find((u) => u.id === p.unidadeId)?.descricao ?? "",
         data(i.dt), i.qtde ?? 0, arredondar(i.preco_unit ?? 0), arredondar((i.qtde ?? 0) * (i.preco_unit ?? 0)), i.nr_doc ?? "",
       ]);
     }
@@ -206,9 +206,9 @@ export function htmlDaOS(m: Manutencao, c: Catalogos): string {
   const tabelaMateriais = itens.length
     ? `<table><thead><tr><th>Material</th><th>Data</th><th class="num">Qtde</th><th class="num">Preço unit.</th><th class="num">Total</th><th>Nº doc</th></tr></thead><tbody>${itens
         .map((i) => {
-          const p = c.produtos.find((x) => x.id === i.manutencao_produto_id);
-          const un = c.unidades.find((u) => u.id === p?.produto_unidade_medida_id)?.descricao ?? "";
-          return `<tr><td>${esc(p?.descricao ?? `#${i.manutencao_produto_id}`)}</td><td>${data(i.dt)}</td><td class="num">${esc(i.qtde)} ${esc(un)}</td><td class="num">${moedaBR(i.preco_unit ?? 0)}</td><td class="num">${moedaBR((i.qtde ?? 0) * (i.preco_unit ?? 0))}</td><td>${esc(i.nr_doc)}</td></tr>`;
+          const p = produtoDoItem(i, c.produtos);
+          const un = c.unidades.find((u) => u.id === p.unidadeId)?.descricao ?? "";
+          return `<tr><td>${esc(p.nome)}</td><td>${data(i.dt)}</td><td class="num">${esc(i.qtde)} ${esc(un)}</td><td class="num">${moedaBR(i.preco_unit ?? 0)}</td><td class="num">${moedaBR((i.qtde ?? 0) * (i.preco_unit ?? 0))}</td><td>${esc(i.nr_doc)}</td></tr>`;
         })
         .join("")}</tbody><tfoot><tr><td colspan="4">Total de materiais</td><td class="num">${moedaBR(cm)}</td><td></td></tr></tfoot></table>`
     : `<p>Nenhum material registrado.</p>`;
@@ -303,13 +303,13 @@ export const imprimirLista = (lista: Manutencao[], c: Catalogos, descricaoFiltro
   imprimir(htmlDaLista(lista, c, descricaoFiltro));
 
 /* ------------------------------------------------------------------------- */
-/* Saída de produtos                                                          */
+/* Entrada e saída de produtos                                                */
 /* ------------------------------------------------------------------------- */
 
 const nomeCadastro = (o: Record<string, any> | null | undefined) =>
   o ? o.descricao || o.nome || o.nome_fantasia || o.placa || `#${o.id}` : "";
 
-/** Comprovante de uma saída de produtos, com itens, totais e assinaturas */
+/** Comprovante de uma entrada ou saída de produtos, com itens, totais e assinaturas */
 export function htmlDaSaida(s: ProdutoSaida, c: CatalogosSaida): string {
   const achar = (l: Array<{ id: number }>, id: number | null) => (id ? l.find((x) => x.id === id) : undefined);
   const nome = (aninhado: any, l: Array<{ id: number }>, id: number | null) => nomeCadastro(aninhado ?? achar(l, id));
@@ -319,6 +319,8 @@ export function htmlDaSaida(s: ProdutoSaida, c: CatalogosSaida): string {
   const total = vprod + n(s.vserv) + n(s.vfrete) + n(s.voutro) - n(s.vdesc);
   const usuario = s.empresa_usuario?.nome ?? nome(null, c.usuarios, s.empresa_usuario_id);
   const situacao = s.recusado ? "Recusada" : s.entregue ? "Entregue" : s.liberado ? "Liberada" : s.finalizado ? "Finalizada" : "Pendente";
+  // Sem "tipo" na saída nem no cadastro do tipo, o comprovante sai como saída
+  const mov = movimento(s, c) === "entrada" ? "Entrada" : "Saída";
   const qtde = (v: unknown) => n(v).toLocaleString("pt-BR", { maximumFractionDigits: 3 });
 
   const linhas = itens
@@ -341,10 +343,11 @@ export function htmlDaSaida(s: ProdutoSaida, c: CatalogosSaida): string {
     .join("");
 
   return documento(
-    `Saída ${s.id}`,
-    `${cabecalho(`Saída de Produtos nº ${s.id}`, `Emitida em ${data(s.dhemi)} · ${situacao}`)}
+    `${mov} ${s.id}`,
+    `${cabecalho(`${mov} de Produtos nº ${s.id}`, `Emitida em ${data(s.dhemi)} · ${situacao}`)}
     <h2>Requisição</h2>
     <div class="grade">
+      ${campo("Movimento", mov)}
       ${campo("Empresa", nome(null, c.empresas, s.empresa_id))}
       ${campo("Usuário", usuario)}
       ${campo("Situação", situacao)}
@@ -376,5 +379,5 @@ export function htmlDaSaida(s: ProdutoSaida, c: CatalogosSaida): string {
   );
 }
 
-/** PDF de uma saída de produtos */
+/** PDF de uma entrada ou saída de produtos */
 export const imprimirSaida = (s: ProdutoSaida, c: CatalogosSaida) => imprimir(htmlDaSaida(s, c));

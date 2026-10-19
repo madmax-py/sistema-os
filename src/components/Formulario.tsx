@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import {
   ApiErro,
+  idUsuarioLogado,
   lerManutencao,
   nomeUsuario,
   salvarManutencao,
@@ -13,6 +14,7 @@ import { Abas, type AbaOS } from "./Abas";
 import { Secao } from "./Detalhe";
 import { Cartoes } from "./Cartoes";
 import { SelectBusca } from "./SelectBusca";
+import { iniciarProdutos, useProdutos } from "../produtosCache";
 import {
   IconeAlerta,
   IconeCaixa,
@@ -30,6 +32,8 @@ interface ItemForm {
   key: string;
   id?: number;
   produtoId: string;
+  /** descrição do produto (gravada no item) */
+  xprod: string;
   dt: string;
   qtde: string;
   preco: string;
@@ -85,7 +89,7 @@ const novaKey = () => `n${++seq}`;
 const HORA_INICIO = "06:00";
 const HORA_TERMINO = "06:00";
 
-const novoItem = (dt: string): ItemForm => ({ key: novaKey(), produtoId: "", dt, qtde: "1", preco: "", nrDoc: "" });
+const novoItem = (dt: string): ItemForm => ({ key: novaKey(), produtoId: "", xprod: "", dt, qtde: "1", preco: "", nrDoc: "" });
 
 const novoServico = (dt: string): ServicoForm => ({
   key: novaKey(),
@@ -171,7 +175,7 @@ export function Formulario({
     recorrente: false,
     vezes: "0",
     dias: "0",
-    usuario: "",
+    usuario: idUsuarioLogado(catalogos.usuarios),
     dtInicio: hoje(),
     hrInicio: HORA_INICIO,
     dtTermino: hoje(),
@@ -181,6 +185,13 @@ export function Formulario({
   const [itens, setItens] = useState<ItemForm[]>([]);
   const [servicos, setServicos] = useState<ServicoForm[]>([]);
   const [carregando, setCarregando] = useState(id !== null);
+  // Materiais: produtos cadastrados (cache compartilhado com o PDV)
+  const produtos = useProdutos();
+  useEffect(iniciarProdutos, []);
+  const opcoesProdutos = useMemo(
+    () => produtos.lista.map((p) => ({ id: p.id, rotulo: p.codigo ? `${p.codigo} — ${p.descricao}` : p.descricao })),
+    [produtos.lista]
+  );
   const [salvando, setSalvando] = useState(false);
   const [erros, setErros] = useState<string[]>([]);
   const [aba, setAba] = useState<AbaOS>("dados");
@@ -239,7 +250,8 @@ export function Formulario({
           (m.manutencao_items ?? []).map((i) => ({
             key: `i${i.id}`,
             id: i.id,
-            produtoId: String(i.manutencao_produto_id),
+            produtoId: i.produto_id != null ? String(i.produto_id) : "",
+            xprod: i.xprod ?? "",
             dt: i.dt,
             qtde: String(i.qtde),
             preco: String(i.preco_unit ?? ""),
@@ -318,7 +330,8 @@ export function Formulario({
         ? { id: i.id, _destroy: true }
         : {
             ...(i.id ? { id: i.id } : {}),
-            manutencao_produto_id: Number(i.produtoId),
+            produto_id: Number(i.produtoId),
+            xprod: i.xprod,
             dt: i.dt,
             qtde: Number(i.qtde) || 0,
             preco_unit: Number(i.preco) || 0,
@@ -373,9 +386,15 @@ export function Formulario({
   const opc = (l: { id: number; descricao: string }[]) => l.map((x) => ({ id: x.id, rotulo: x.descricao }));
   const equipamentosDoSetor = catalogos.equipamentos.filter((e) => e.ativo !== false && doSetor(e)).length;
   const unidade = (pid: string) => {
-    const uid = catalogos.produtos.find((p) => String(p.id) === pid)?.produto_unidade_medida_id;
+    const uid = produtos.lista.find((p) => String(p.id) === pid)?.produto_unidade_medida_id;
     return catalogos.unidades.find((u) => u.id === uid)?.descricao ?? "";
   };
+
+  // Produto do item ainda não está no cache (carregando/inativo): mostra a descrição salva
+  const opcoesProduto = (i: ItemForm) =>
+    i.produtoId && !opcoesProdutos.some((o) => String(o.id) === i.produtoId)
+      ? [{ id: Number(i.produtoId), rotulo: i.xprod || `Produto #${i.produtoId}` }, ...opcoesProdutos]
+      : opcoesProdutos;
 
   return (
     <form onSubmit={salvar} noValidate ref={formRef} className="pagina">
@@ -569,10 +588,15 @@ export function Formulario({
                   value={i.produtoId}
                   obrigatorio={!i.remover}
                   onChange={(v) => {
-                    const custo = catalogos.produtos.find((p) => String(p.id) === v)?.custo;
-                    setItem(i.key, { produtoId: v, ...(custo != null ? { preco: String(custo) } : {}) });
+                    const p = produtos.lista.find((x) => String(x.id) === v);
+                    const custo = p?.valor_custo;
+                    setItem(i.key, {
+                      produtoId: v,
+                      xprod: p?.descricao ?? "",
+                      ...(custo != null && custo !== "" ? { preco: String(Number(custo)) } : {}),
+                    });
                   }}
-                  opcoes={catalogos.produtos.map((p) => ({ id: p.id, rotulo: p.descricao }))}
+                  opcoes={opcoesProduto(i)}
                 />
               </Campo>
               <Campo rotulo="Data" obrigatorio>

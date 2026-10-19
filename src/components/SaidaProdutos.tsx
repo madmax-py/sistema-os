@@ -3,6 +3,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ComponentType,
   type FormEvent,
   type ReactNode,
 } from "react";
@@ -10,15 +11,18 @@ import {
   ApiErro,
   carregarCatalogosSaida,
   excluirProdutoSaida,
+  idUsuarioLogado,
+  lerMovimento,
+  movimento,
   lerProdutoSaida,
-  listarProdutoSaidas,
   salvarProdutoSaida,
   type CatalogosSaida,
+  type Movimento,
   type ProdutoSaida,
   type ProdutoSaidaPayload,
 } from "../api";
 import { imprimirSaida } from "../exportar";
-import { data, mensagensValidacao, moeda } from "../formato";
+import { data, mensagensValidacao } from "../formato";
 import { Secao } from "./Detalhe";
 import {
   atualizarProdutos,
@@ -30,14 +34,12 @@ import { StatusProdutos } from "./Produtos";
 import { SelectBusca } from "./SelectBusca";
 import {
   IconeAtualizar,
-  IconeBusca,
   IconeCaixa,
   IconeCadeado,
   IconeCheck,
   IconeDocumento,
   IconeFabrica,
   IconeLixeira,
-  IconeMais,
   IconePdf,
 } from "./Icones";
 
@@ -46,7 +48,7 @@ import {
 /* ------------------------------------------------------------------------- */
 
 /** Rótulo de um cadastro qualquer da Progete (descricao, nome ou nome_fantasia) */
-function rotulo(o: Record<string, any> | null | undefined): string {
+export function rotulo(o: Record<string, any> | null | undefined): string {
   if (!o) return "—";
   return o.descricao || o.nome || o.nome_fantasia || o.placa || `#${o.id}`;
 }
@@ -109,7 +111,7 @@ export function situacao(s: ProdutoSaida): { texto: string; cor: string } {
   return { texto: "Pendente", cor: "ambar" };
 }
 
-const totalItens = (s: ProdutoSaida) =>
+export const totalItens = (s: ProdutoSaida) =>
   (s.produto_saida_items ?? []).reduce(
     (t, i) => t + (Number(i.qcom) || 0) * (Number(i.vuncom) || 0),
     0,
@@ -119,7 +121,15 @@ const totalItens = (s: ProdutoSaida) =>
 /* Tela (lista ⇄ formulário)                                                  */
 /* ------------------------------------------------------------------------- */
 
-export function SaidaProdutos({ novo }: { novo?: boolean }) {
+export interface PropsLista {
+  catalogos: CatalogosSaida;
+  onAbrir: (id: number) => void;
+  /** Novo lançamento; o movimento (entrada/saída) vem da aba aberta */
+  onNova: (movimento?: Movimento) => void;
+}
+
+/** Cadastros + formulário de saída; a listagem vem de quem usa (tela de entradas e saídas) */
+export function SaidaProdutos({ Lista }: { Lista: ComponentType<PropsLista> }) {
   const [cadastros, setCatalogos] = useState<CatalogosSaida | null>(null);
   // Produtos vêm do cache compartilhado (carregam em segundo plano no 1º acesso)
   const { lista: produtos } = useProdutos();
@@ -131,9 +141,8 @@ export function SaidaProdutos({ novo }: { novo?: boolean }) {
   const [erroCat, setErroCat] = useState<string | null>(null);
   const [falhas, setFalhas] = useState<string[]>([]);
   // undefined = lista; null = nova saída; número = edição
-  const [editando, setEditando] = useState<number | null | undefined>(
-    novo ? null : undefined,
-  );
+  const [editando, setEditando] = useState<number | null | undefined>();
+  const [movimentoNovo, setMovimentoNovo] = useState<Movimento>("saida");
 
   const carregarCat = () => {
     setErroCat(null);
@@ -173,15 +182,19 @@ export function SaidaProdutos({ novo }: { novo?: boolean }) {
         </div>
       )}
       {editando === undefined ? (
-        <ListaSaidas
+        <Lista
           catalogos={catalogos}
           onAbrir={setEditando}
-          onNova={() => setEditando(null)}
+          onNova={(m) => {
+            setMovimentoNovo(m ?? "saida");
+            setEditando(null);
+          }}
         />
       ) : (
         <FormSaida
           key={editando ?? "nova"}
           id={editando}
+          movimentoNovo={movimentoNovo}
           catalogos={catalogos}
           onFechar={() => setEditando(undefined)}
           onCriado={setEditando}
@@ -191,11 +204,8 @@ export function SaidaProdutos({ novo }: { novo?: boolean }) {
   );
 }
 
-/* ------------------------------------------------------------------------- */
-/* Lista                                                                      */
-/* ------------------------------------------------------------------------- */
-
-const SITUACOES = [
+/** Situações na ordem do filtro das listagens */
+export const SITUACOES = [
   "Pendente",
   "Finalizada",
   "Liberada",
@@ -203,247 +213,12 @@ const SITUACOES = [
   "Recusada",
 ];
 
-function ListaSaidas({
-  catalogos,
-  onAbrir,
-  onNova,
-}: {
-  catalogos: CatalogosSaida;
-  onAbrir: (id: number) => void;
-  onNova: () => void;
-}) {
-  const [lista, setLista] = useState<ProdutoSaida[] | null>(null);
-  const [erro, setErro] = useState<string | null>(null);
-  const [busca, setBusca] = useState("");
-  const [usuario, setUsuario] = useState("");
-  const [empresa, setEmpresa] = useState("");
-  const [sit, setSit] = useState("");
-
-  const carregar = () => {
-    setErro(null);
-    setLista(null);
-    listarProdutoSaidas()
-      .then((l) => setLista(Array.isArray(l) ? l : []))
-      .catch((e) =>
-        setErro(
-          `Não foi possível listar as saídas (GET produto_saidas): ${e.message}`,
-        ),
-      );
-  };
-
-  useEffect(carregar, []);
-
-  // A Progete devolve só as não liberadas do mês; os filtros abaixo são locais
-  const filtrada = useMemo(() => {
-    const t = busca.trim().toLowerCase();
-    return (
-      lista?.filter(
-        (s) =>
-          (!empresa || String(s.empresa_id) === empresa) &&
-          (!usuario || String(s.empresa_usuario_id) === usuario) &&
-          (!sit || situacao(s).texto === sit) &&
-          (!t ||
-            [
-              String(s.id),
-              s.empresa_usuario?.nome,
-              s.produto_saida_tipo?.descricao,
-              s.produto_saida_fluxo?.descricao,
-              rotulo(s.equipamento),
-              rotulo(s.veiculo),
-              s.descprod,
-              s.infcpl,
-              ...(s.produto_saida_items ?? []).map((i) => i.xprod),
-            ].some((v) => v?.toLowerCase().includes(t))),
-      ) ?? null
-    );
-  }, [lista, busca, empresa, usuario, sit]);
-
-  const nomeEmpresa = (id: number) =>
-    catalogos.empresas.find((e) => e.id === id)?.nome_fantasia || `#${id}`;
-  // Coluna de empresa só quando a lista tem mais de uma
-  const variasEmpresas = new Set(lista?.map((s) => s.empresa_id)).size > 1;
-
-  const stats = useMemo(
-    () => ({
-      total: lista?.length ?? 0,
-      pendentes:
-        lista?.filter((s) => situacao(s).texto === "Pendente").length ?? 0,
-      finalizadas: lista?.filter((s) => s.finalizado).length ?? 0,
-    }),
-    [lista],
-  );
-
-  return (
-    <div className="pagina">
-      <div className="hero">
-        <div className="hero-titulo">
-          <div className="hero-icone">
-            <IconeCaixa width={28} height={28} />
-          </div>
-          <div>
-            <p className="sobre">Estoque · Progete</p>
-            <h1>Saída de Produtos</h1>
-            <p className="desc">Saídas ainda não liberadas deste mês.</p>
-          </div>
-        </div>
-        <div className="estatisticas">
-          <div className="estatistica azul">
-            <b>{stats.total}</b>
-            <span>Em aberto</span>
-          </div>
-          <div className="estatistica ambar">
-            <b>{stats.pendentes}</b>
-            <span>Pendentes</span>
-          </div>
-          <div className="estatistica verde">
-            <b>{stats.finalizadas}</b>
-            <span>Finalizadas</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="card filtros">
-        {catalogos.empresas.length > 1 && (
-          <label>
-            <span>Empresa</span>
-            <Select
-              value={empresa}
-              onChange={setEmpresa}
-              opcoes={catalogos.empresas.map((e) => ({
-                id: e.id,
-                rotulo: e.nome_fantasia || `#${e.id}`,
-              }))}
-              vazio="Todas as empresas"
-            />
-          </label>
-        )}
-        <label>
-          <span>Usuário</span>
-          <Select
-            value={usuario}
-            onChange={setUsuario}
-            opcoes={opcoes(catalogos.usuarios)}
-            vazio="Todos os usuários"
-          />
-        </label>
-        <label>
-          <span>Situação</span>
-          <select value={sit} onChange={(e) => setSit(e.target.value)}>
-            <option value="">Todas</option>
-            {SITUACOES.map((x) => (
-              <option key={x}>{x}</option>
-            ))}
-          </select>
-        </label>
-        <div className="filtros-acoes">
-          {(empresa || usuario || sit) && (
-            <button
-              type="button"
-              onClick={() => {
-                setEmpresa("");
-                setUsuario("");
-                setSit("");
-              }}
-            >
-              Limpar
-            </button>
-          )}
-          <button type="button" onClick={carregar}>
-            <IconeAtualizar width={16} height={16} /> Atualizar
-          </button>
-        </div>
-      </div>
-
-      <div className="barra">
-        <div className="campo-busca">
-          <IconeBusca />
-          <input
-            placeholder="Buscar por nº, usuário, tipo, equipamento, produto…"
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-          />
-        </div>
-        <div className="acoes">
-          <button className="primario" onClick={onNova}>
-            <IconeMais width={16} height={16} /> Nova saída
-          </button>
-        </div>
-      </div>
-
-      {erro && <div className="erro-caixa">{erro}</div>}
-      {!lista && !erro && <p className="muted">Carregando…</p>}
-      {filtrada && filtrada.length === 0 && (
-        <div className="vazio">Nenhuma saída em aberto encontrada.</div>
-      )}
-
-      {filtrada && filtrada.length > 0 && (
-        <div className="tabela-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Nº</th>
-                <th>Emissão</th>
-                {variasEmpresas && <th>Empresa</th>}
-                <th>Usuário</th>
-                <th>Tipo</th>
-                <th>Destino</th>
-                <th>Itens</th>
-                <th>Total</th>
-                <th>Situação</th>
-                <th className="col-acao">PDF</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtrada.map((s) => {
-                const sit = situacao(s);
-                const destino =
-                  s.equipamento ?? s.veiculo ?? s.lancamento_centro_custo;
-                return (
-                  <tr
-                    key={s.id}
-                    onClick={() => onAbrir(s.id)}
-                    className="clicavel"
-                  >
-                    <td className="num">#{s.id}</td>
-                    <td>{data(s.dhemi)}</td>
-                    {variasEmpresas && <td>{nomeEmpresa(s.empresa_id)}</td>}
-                    <td>{s.empresa_usuario?.nome ?? "—"}</td>
-                    <td>{s.produto_saida_tipo?.descricao ?? "—"}</td>
-                    <td>{destino ? rotulo(destino) : "—"}</td>
-                    <td>{s.produto_saida_items?.length ?? 0}</td>
-                    <td>{moeda(s.vprod ?? totalItens(s))}</td>
-                    <td>
-                      <span className={`pilula ${sit.cor}`}>{sit.texto}</span>
-                    </td>
-                    <td className="col-acao">
-                      <button
-                        className="icone pequeno"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          imprimirSaida(s, catalogos);
-                        }}
-                        title={`Gerar PDF da saída nº ${s.id}`}
-                        aria-label={`Gerar PDF da saída nº ${s.id}`}
-                      >
-                        <IconePdf width={16} height={16} />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
 /* ------------------------------------------------------------------------- */
 /* Formulário                                                                 */
 /* ------------------------------------------------------------------------- */
 
 interface Cabecalho {
+  movimento: Movimento;
   empresa: string;
   usuario: string;
   tipo: string;
@@ -461,6 +236,7 @@ interface Cabecalho {
 }
 
 const CAB_VAZIO: Cabecalho = {
+  movimento: "saida",
   empresa: "",
   usuario: "",
   tipo: "",
@@ -482,11 +258,13 @@ const str = (v: unknown) => (v == null ? "" : String(v));
 
 function FormSaida({
   id,
+  movimentoNovo = "saida",
   catalogos,
   onFechar,
   onCriado,
 }: {
   id: number | null;
+  movimentoNovo?: Movimento;
   catalogos: CatalogosSaida;
   onFechar: () => void;
   onCriado: (id: number) => void;
@@ -494,6 +272,8 @@ function FormSaida({
   // Uma empresa só → já vem escolhida
   const [cab, setCab] = useState<Cabecalho>(() => ({
     ...CAB_VAZIO,
+    movimento: movimentoNovo,
+    usuario: idUsuarioLogado(catalogos.usuarios),
     empresa:
       catalogos.empresas.length === 1 ? String(catalogos.empresas[0].id) : "",
   }));
@@ -516,6 +296,7 @@ function FormSaida({
         setOriginal(s);
         setDhemi(s.dhemi);
         setCab({
+          movimento: movimento(s, catalogos) ?? "saida",
           empresa: str(s.empresa_id),
           usuario: str(s.empresa_usuario_id),
           tipo: str(s.produto_saida_tipo_id),
@@ -548,6 +329,12 @@ function FormSaida({
 
   const set = <K extends keyof Cabecalho>(k: K, v: Cabecalho[K]) =>
     setCab((c) => ({ ...c, [k]: v }));
+  // Tipos do movimento escolhido (os sem "tipo" no cadastro servem para os dois)
+  const tiposMov = catalogos.tipos.filter((t) => {
+    const m = lerMovimento(t.tipo);
+    return !m || m === cab.movimento;
+  });
+  const nomeMov = cab.movimento === "saida" ? "saída" : "entrada";
   const ativos = itens.filter((i) => !i.remover);
   const vprod = ativos.reduce(
     (t, i) => t + (Number(i.qcom) || 0) * (Number(i.vuncom) || 0),
@@ -559,6 +346,7 @@ function FormSaida({
     // O create da Progete não preenche mais a empresa logada: vai do formulário
     ...(cab.empresa ? { empresa_id: Number(cab.empresa) } : {}),
     empresa_usuario_id: idOuNull(cab.usuario),
+    tipo: cab.movimento === "saida" ? 1 : 0,
     produto_saida_tipo_id: idOuNull(cab.tipo),
     produto_saida_fluxo_id: idOuNull(cab.fluxo),
     equipamento_id: idOuNull(cab.equipamento),
@@ -612,7 +400,7 @@ function FormSaida({
     if (
       !id ||
       bloqueada ||
-      !confirm(`Excluir a saída nº ${id}? Essa ação não pode ser desfeita.`)
+      !confirm(`Excluir a ${nomeMov} nº ${id}? Essa ação não pode ser desfeita.`)
     )
       return;
     setSalvando(true);
@@ -662,7 +450,7 @@ function FormSaida({
         Cancelar
       </button>
       <button className="primario" type="submit" disabled={salvando}>
-        {salvando ? "Salvando…" : "Salvar saída"}
+        {salvando ? "Salvando…" : `Salvar ${nomeMov}`}
       </button>
     </>
   );
@@ -671,7 +459,7 @@ function FormSaida({
     <form onSubmit={salvar} className="pagina">
       <div className="barra">
         <h2>
-          {id ? `Saída nº ${id}` : "Nova saída de produtos"}
+          {id ? `${cab.movimento === "saida" ? "Saída" : "Entrada"} nº ${id}` : `Nova ${nomeMov} de produtos`}
           <small>
             {dhemi ? `Emitida em ${data(dhemi)} · ` : ""}
             {bloqueada
@@ -734,7 +522,7 @@ function FormSaida({
               <Select
                 value={cab.tipo}
                 onChange={(v) => set("tipo", v)}
-                opcoes={opcoes(catalogos.tipos)}
+                opcoes={opcoes(tiposMov)}
                 obrigatorio
               />
             </Campo>
@@ -855,16 +643,16 @@ function FormSaida({
 
       <div className="rodape-form">{botoes}</div>
 
-      {salva && <PerguntaPdf saida={salva} onResposta={seguir} />}
+      {salva && <PerguntaPdf titulo={`${nomeMov === "saída" ? "Saída" : "Entrada"} nº ${salva.id} salva`} onResposta={seguir} />}
     </form>
   );
 }
 
 function PerguntaPdf({
-  saida,
+  titulo,
   onResposta,
 }: {
-  saida: ProdutoSaida;
+  titulo: string;
   onResposta: (imprimir: boolean) => void;
 }) {
   const botao = useRef<HTMLButtonElement>(null);
@@ -887,7 +675,7 @@ function PerguntaPdf({
         <div className="modal-icone">
           <IconeCheck width={26} height={26} />
         </div>
-        <h3 id="pergunta-pdf">Saída nº {saida.id} salva</h3>
+        <h3 id="pergunta-pdf">{titulo}</h3>
         <p className="muted">Quer imprimir ou salvar o comprovante em PDF?</p>
         <div className="modal-acoes">
           <button type="button" onClick={() => onResposta(false)}>

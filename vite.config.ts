@@ -13,6 +13,8 @@ function progeteDevApi(): Plugin {
       // Variáveis do servidor (ex.: PROGETE_URL) podem vir do .env.local
       const env = loadEnv(server.config.mode, server.config.envDir || process.cwd(), "");
       for (const [chave, valor] of Object.entries(env)) process.env[chave] ??= valor;
+      // Libera domínios locais (http) na tela de conexão — só no dev server
+      process.env.PROGETE_DEV = "1";
 
       server.middlewares.use("/api/progete", async (req, res) => {
         try {

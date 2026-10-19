@@ -15,7 +15,8 @@
 // ignorado e o app pula a tela de conexão. Sem ela, só aceita domínios
 // permitidos (DOMINIOS_PERMITIDOS + env PROGETE_HOSTS). Em todos os casos só
 // as rotas da lista ROTAS — não é um proxy aberto.
-// Em desenvolvimento, o vite.config.ts serve esta mesma função.
+// Em desenvolvimento, o vite.config.ts serve esta mesma função e define
+// PROGETE_DEV=1: aí qualquer host http/https é aceito (ex.: API local na rede).
 // =========================================================================
 
 /** Domínio fixo (ex.: "https://teste.progete.com.br"); aceita também a URL com /api/v1 */
@@ -76,6 +77,7 @@ function origemPermitida(base: string): string | null {
   if (url.username || url.password) return null;
   const host = url.host.toLowerCase(); // inclui porta
   const hostname = url.hostname.toLowerCase();
+  if (process.env.PROGETE_DEV === "1" && (url.protocol === "https:" || url.protocol === "http:")) return url.origin;
   const daMarca = DOMINIOS_PERMITIDOS.some((d) => hostname === d || hostname.endsWith(`.${d}`));
   if (daMarca && url.protocol === "https:" && !url.port) return url.origin;
   if (HOSTS_EXTRAS.includes(host) && (url.protocol === "https:" || url.protocol === "http:")) return url.origin;
