@@ -119,6 +119,10 @@ h3 { font-size: 1rem; font-weight: 700; }
   to { opacity: 1; transform: translateY(0); }
 }
 .fade-up { animation: fade-up 0.65s cubic-bezier(0.16, 1, 0.3, 1) both; }
+@keyframes fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
 @media (prefers-reduced-motion: reduce) {
   .aurora span, .fade-up { animation: none; }
 }
@@ -651,6 +655,21 @@ html.dark {
 .filtros { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1rem; align-items: end; padding: 1rem 1.25rem; }
 .filtros-acoes { display: flex; gap: 0.5rem; justify-content: flex-end; flex-wrap: wrap; }
 
+/* Filtros da lista de O.S.: período + equipamento / cadastros / ações */
+.filtros-os { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; align-items: start; padding: 1rem 1.25rem; }
+.filtros-os input, .filtros-os select, .filtros-os .select-busca-gatilho { height: 2.75rem; padding-top: 0; padding-bottom: 0; }
+.filtros-os-acoes { grid-column: 1 / -1; display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem; flex-wrap: wrap; padding-top: 1rem; border-top: 1px solid var(--borda); }
+.filtros-os-aviso { margin-right: auto; font-size: 0.8rem; color: var(--muted); }
+/* Painel de indicadores: 6 campos em 2 linhas de 3 */
+.filtros-os.tres { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 860px) {
+  .filtros-os, .filtros-os.tres { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 520px) {
+  .filtros-os, .filtros-os.tres { grid-template-columns: minmax(0, 1fr); }
+  .filtros-os-acoes > button { flex: 1; }
+}
+
 .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 1rem; }
 .tile { display: flex; flex-direction: column; gap: 0.35rem; padding: 1.1rem 1.25rem; }
 .tile-topo { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
@@ -1160,7 +1179,7 @@ html.dark {
   place-items: center;
   padding: 1rem;
   background: rgba(0, 0, 0, 0.55);
-  animation: fade-up 0.25s ease both;
+  animation: fade 0.2s ease both;
 }
 .modal .card { width: min(24rem, 100%); text-align: center; padding: 1.75rem 1.5rem 1.5rem; }
 .modal h3 { margin: 0.75rem 0 0.25rem; font-size: 1.125rem; }
@@ -1337,3 +1356,27 @@ html.dark {
 .campos-par { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 1rem; }
 @media (max-width: 640px) { .campos-par { grid-template-columns: 1fr; } }
 .linha.removido .select-busca-gatilho { text-decoration: line-through; }
+
+/* Tag de situação ao lado do título da O.S. */
+.tag-titulo { margin-left: 0.5rem; vertical-align: middle; font-size: 0.75rem; }
+
+/* ── Escolha do modelo do Excel ── */
+.modal .card.painel-excel { width: min(30rem, 100%); }
+.opcoes-excel { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 1rem; text-align: left; }
+.opcao-excel {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--borda);
+  border-radius: 0.75rem;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.opcao-excel:hover { border-color: #1c84c6; }
+.opcao-excel.ativa { border-color: #1c84c6; background: rgba(28, 132, 198, 0.08); }
+.opcao-excel input { width: auto; flex: none; margin: 0.2rem 0 0; padding: 0; accent-color: #1c84c6; }
+.opcao-excel b { display: block; font-size: 0.9rem; }
+.opcao-excel small { display: block; margin-top: 0.15rem; font-size: 0.8rem; color: var(--muted); }
+.campo-empresa { margin-top: 0.85rem; text-align: left; }

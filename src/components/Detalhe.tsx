@@ -71,6 +71,7 @@ export function Detalhe({
       <div className="barra">
         <h2>
           O.S. nº {m.id}
+          {m.finalizado && <span className="pilula verde tag-titulo">Liberada</span>}
           <small>
             {m.manutencao_equipamento?.descricao ?? "Equipamento"} · programada para {data(m.dt_programada)}
           </small>
@@ -82,7 +83,12 @@ export function Detalhe({
           <button onClick={() => imprimirOS(m, catalogos)} title="Gerar PDF desta O.S.">
             <IconePdf width={16} height={16} /> PDF
           </button>
-          <button className="primario" onClick={onEditar}>
+          <button
+            className="primario"
+            onClick={onEditar}
+            disabled={m.finalizado}
+            title={m.finalizado ? "O.S. liberada não pode ser editada" : undefined}
+          >
             <IconeEditar width={16} height={16} /> Editar
           </button>
         </div>

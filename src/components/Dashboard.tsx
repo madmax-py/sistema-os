@@ -2,15 +2,17 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { listarManutencoes, type Catalogos, type Manutencao } from "../api";
 import {
   calcular,
-  FILTRO_VAZIO,
+  filtrar,
+  filtroPadrao,
   SEM_USUARIO,
   usuariosDasOS,
   type Contagem,
   type Filtro,
-  type Periodo,
 } from "../dashboard";
 import { data, moeda } from "../formato";
 import { Secao } from "./Detalhe";
+import { AcoesFiltro, useFiltroAplicado } from "./FiltroAplicado";
+import { exportarIndicadores } from "../exportarIndicadores";
 import {
   IconeAtualizar,
   IconeCaixa,
@@ -21,6 +23,7 @@ import {
   IconeLista,
   IconeGrafico,
   IconeAlerta,
+  IconePlanilha,
   IconeUsuarios,
 } from "./Icones";
 
@@ -39,14 +42,6 @@ const horasFmt = (h: number) => {
 export const moedaCurta = (v: number) =>
   v >= 1000 ? `R$ ${num(v / 1000, 1)} mil` : moeda(v);
 export const pct = (parte: number, todo: number) => (todo ? Math.round((parte / todo) * 100) : 0);
-
-const PERIODOS: { id: Periodo; rotulo: string }[] = [
-  { id: "todos", rotulo: "Todo o período" },
-  { id: "30d", rotulo: "Últimos 30 dias" },
-  { id: "90d", rotulo: "Últimos 90 dias" },
-  { id: "12m", rotulo: "Últimos 12 meses" },
-  { id: "ano", rotulo: "Este ano" },
-];
 
 /* ------------------------------------------------------------------------- */
 /* Peças                                                                      */
@@ -233,27 +228,48 @@ export function Divisao({ partes, formato, sufixo, vazio }: {
 export function Dashboard({ catalogos, onAbrir }: { catalogos: Catalogos; onAbrir: (id: number) => void }) {
   const [lista, setLista] = useState<Manutencao[] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
-  const [filtro, setFiltro] = useState<Filtro>(FILTRO_VAZIO);
   const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
+  const [recarga, setRecarga] = useState(0);
+  const [carregando, setCarregando] = useState(false);
+  const { filtro, rascunho, set, aplicar, limpar, alterado, pendente } = useFiltroAplicado<Filtro>(filtroPadrao, () =>
+    setRecarga((n) => n + 1)
+  );
 
-  const carregar = () => {
+  const periodoInvalido = !rascunho.dataInicio || !rascunho.dataFim || rascunho.dataInicio > rascunho.dataFim;
+
+  // Só busca ao aplicar; o período vai para o servidor (o index sem datas só traz o mês anterior e o atual)
+  useEffect(() => {
+    let ativo = true;
     setErro(null);
-    listarManutencoes()
+    setCarregando(true); // mantém os dados anteriores na tela enquanto busca
+    listarManutencoes({ dataInicio: filtro.dataInicio, dataFim: filtro.dataFim })
       .then((l) => {
+        if (!ativo) return;
         setLista(l);
         setAtualizadoEm(new Date());
       })
-      .catch((e) => setErro(e.message));
-  };
-  useEffect(carregar, []);
+      .catch((e) => ativo && setErro(e.message))
+      .finally(() => ativo && setCarregando(false));
+    return () => {
+      ativo = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recarga]);
 
   const usuarios = useMemo(() => usuariosDasOS(lista ?? [], catalogos), [lista, catalogos]);
   const ind = useMemo(() => (lista ? calcular(lista, catalogos, filtro) : null), [lista, catalogos, filtro]);
 
-  if (erro) return <div className="erro-caixa">{erro}</div>;
+  if (erro && !lista) {
+    return (
+      <div className="erro-caixa">
+        {erro} <button onClick={() => setRecarga((n) => n + 1)}>Tentar de novo</button>
+      </div>
+    );
+  }
   if (!ind) return <p className="muted">Calculando indicadores…</p>;
 
-  const filtrado = filtro.periodo !== "todos" || filtro.tipoId || filtro.equipamentoId || filtro.usuarioId;
+  /** outros filtros além do período (o "total" já é do período, vindo do servidor) */
+  const subfiltrado = filtro.finalizado || filtro.tipoId || filtro.equipamentoId || filtro.usuarioId;
   const variacao = ind.mesAtual - ind.mesAnterior;
   const problemas = ind.qualidade.reduce((s, q) => s + q.valor, 0);
   const maxHorasMant = Math.max(...ind.mantenedores.map((m) => m.horas), 0) || 1;
@@ -271,8 +287,9 @@ export function Dashboard({ catalogos, onAbrir }: { catalogos: Catalogos; onAbri
             <p className="sobre">Manutenção · Indicadores</p>
             <h1>Painel de Indicadores</h1>
             <p className="desc">
-              {PERIODOS.find((p) => p.id === filtro.periodo)?.rotulo}
-              {atualizadoEm && ` · atualizado às ${atualizadoEm.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`}
+              {data(filtro.dataInicio)} a {data(filtro.dataFim)}
+              {filtro.finalizado && " · somente finalizadas"}
+              {carregando ? " · carregando…" : atualizadoEm && ` · atualizado às ${atualizadoEm.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`}
             </p>
           </div>
         </div>
@@ -293,20 +310,44 @@ export function Dashboard({ catalogos, onAbrir }: { catalogos: Catalogos; onAbri
       </div>
 
       {/* Filtros — uma linha acima de tudo */}
-      <div className="card filtros">
+      <form
+        className="card filtros-os tres"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!periodoInvalido) aplicar();
+        }}
+      >
         <label>
-          <span>Período</span>
-          <select value={filtro.periodo} onChange={(e) => setFiltro({ ...filtro, periodo: e.target.value as Periodo })}>
-            {PERIODOS.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.rotulo}
-              </option>
-            ))}
+          <span>Programada de</span>
+          <input
+            type="date"
+            value={rascunho.dataInicio}
+            max={rascunho.dataFim || undefined}
+            onChange={(e) => set("dataInicio", e.target.value)}
+          />
+        </label>
+        <label>
+          <span>Até</span>
+          <input
+            type="date"
+            value={rascunho.dataFim}
+            min={rascunho.dataInicio || undefined}
+            onChange={(e) => set("dataFim", e.target.value)}
+          />
+        </label>
+        <label>
+          <span>Finalizado</span>
+          <select
+            value={rascunho.finalizado}
+            onChange={(e) => set("finalizado", e.target.value as Filtro["finalizado"])}
+          >
+            <option value="">Todas as O.S.</option>
+            <option value="sim">Somente finalizadas</option>
           </select>
         </label>
         <label>
           <span>Tipo</span>
-          <select value={filtro.tipoId} onChange={(e) => setFiltro({ ...filtro, tipoId: e.target.value })}>
+          <select value={rascunho.tipoId} onChange={(e) => set("tipoId", e.target.value)}>
             <option value="">Todos os tipos</option>
             {catalogos.tipos.map((t) => (
               <option key={t.id} value={t.id}>
@@ -317,7 +358,7 @@ export function Dashboard({ catalogos, onAbrir }: { catalogos: Catalogos; onAbri
         </label>
         <label>
           <span>Equipamento</span>
-          <select value={filtro.equipamentoId} onChange={(e) => setFiltro({ ...filtro, equipamentoId: e.target.value })}>
+          <select value={rascunho.equipamentoId} onChange={(e) => set("equipamentoId", e.target.value)}>
             <option value="">Todos os equipamentos</option>
             {catalogos.equipamentos.map((e) => (
               <option key={e.id} value={e.id}>
@@ -328,7 +369,7 @@ export function Dashboard({ catalogos, onAbrir }: { catalogos: Catalogos; onAbri
         </label>
         <label>
           <span>Mantenedor interno</span>
-          <select value={filtro.usuarioId} onChange={(e) => setFiltro({ ...filtro, usuarioId: e.target.value })}>
+          <select value={rascunho.usuarioId} onChange={(e) => set("usuarioId", e.target.value)}>
             <option value="">Todos os mantenedores</option>
             <option value={SEM_USUARIO}>Sem mantenedor interno</option>
             {usuarios.map((u) => (
@@ -338,24 +379,32 @@ export function Dashboard({ catalogos, onAbrir }: { catalogos: Catalogos; onAbri
             ))}
           </select>
         </label>
-        <div className="filtros-acoes">
-          {filtrado && (
-            <button type="button" onClick={() => setFiltro(FILTRO_VAZIO)}>
-              Limpar
+        <AcoesFiltro
+          alterado={alterado}
+          pendente={pendente}
+          aviso={periodoInvalido ? "A data inicial não pode ser maior que a final." : null}
+          carregando={carregando}
+          onLimpar={limpar}
+          extra={
+            <button
+              type="button"
+              onClick={() => lista && exportarIndicadores(ind, filtrar(lista, filtro), catalogos, filtro)}
+              disabled={carregando || !ind.total}
+              title="Baixar os indicadores e as O.S. do filtro aplicado em .xlsx"
+            >
+              <IconePlanilha width={16} height={16} /> Exportar Excel
             </button>
-          )}
-          <button type="button" onClick={carregar}>
-            <IconeAtualizar width={16} height={16} /> Atualizar
-          </button>
-        </div>
-      </div>
+          }
+        />
+      </form>
+      {erro && <div className="erro-caixa">{erro}</div>}
 
       {/* Números principais */}
       <div className="tiles">
         <Tile
           rotulo="Ordens de serviço"
           valor={num(ind.total)}
-          detalhe={filtrado ? `de ${num(ind.totalGeral)} no total` : `${num(ind.hoje)} programada(s) para hoje`}
+          detalhe={subfiltrado ? `de ${num(ind.totalGeral)} no total` : `${num(ind.hoje)} programada(s) para hoje`}
           icone={<IconeLista width={18} height={18} />}
           cor="azul"
         />

@@ -128,6 +128,8 @@ export interface Manutencao {
   dt_termino: string | null;
   hr_termino: string | null;
   desc_atividade: string | null;
+  /** Finalizada na Progete: o update é recusado, então a edição fica bloqueada */
+  finalizado?: boolean;
   created_at: string;
   empresa_usuario?: EmpresaUsuario;
   manutencao_equipamento?: Equipamento;
@@ -479,7 +481,55 @@ async function carregarUsuarios(): Promise<EmpresaUsuario[]> {
   return [];
 }
 
-export const listarManutencoes = () => chamar<Manutencao[]>("GET", "manutencaos");
+/**
+ * Filtros do index de manutencaos (params[:form]). As datas filtram
+ * dt_programada e são obrigatórias quando há filtro; os ids vazios são ignorados.
+ */
+export interface FiltroManutencoes {
+  dataInicio: string;
+  dataFim: string;
+  /** mantenedor interno (usuário da empresa) */
+  usuarioId?: string;
+  outroId?: string;
+  tipoId?: string;
+  equipamentoId?: string;
+  fluxoId?: string;
+  prioridadeId?: string;
+}
+
+/** A Progete pagina o index em 100 registros por página */
+const POR_PAGINA_MANUTENCOES = 100;
+
+function queryManutencoes(filtro: FiltroManutencoes | undefined, page: number): Record<string, string> {
+  const q: Record<string, string> = { page: String(page) };
+  if (!filtro) return q; // sem form: mês anterior + mês atual (padrão do servidor)
+  // "data_incio" (sic) é o nome do parâmetro no controller
+  q["form[data_incio]"] = filtro.dataInicio;
+  q["form[data_fim]"] = filtro.dataFim;
+  const ids: Array<[string, string | undefined]> = [
+    ["empresa_usuario_id", filtro.usuarioId],
+    ["manutencao_outro_id", filtro.outroId],
+    ["manutencao_tipo_id", filtro.tipoId],
+    ["manutencao_equipamento_id", filtro.equipamentoId],
+    ["manutencao_fluxo_id", filtro.fluxoId],
+    ["manutencao_prioridade_id", filtro.prioridadeId],
+  ];
+  for (const [campo, v] of ids) if (v) q[`form[${campo}]`] = v;
+  return q;
+}
+
+/** Todas as páginas do index (ordenado por dt_programada desc no servidor) */
+export async function listarManutencoes(filtro?: FiltroManutencoes): Promise<Manutencao[]> {
+  const todas = new Map<number, Manutencao>();
+  for (let page = 1; page <= 100; page++) {
+    const l = await chamar<Manutencao[]>("GET", "manutencaos", { query: queryManutencoes(filtro, page) });
+    if (!Array.isArray(l)) break;
+    const antes = todas.size;
+    l.forEach((m) => todas.set(m.id, m));
+    if (l.length < POR_PAGINA_MANUTENCOES || todas.size === antes) break;
+  }
+  return [...todas.values()];
+}
 
 /**
  * GET manutencaos/:id da Progete devolve só os campos simples (sem
@@ -487,7 +537,10 @@ export const listarManutencoes = () => chamar<Manutencao[]>("GET", "manutencaos"
  * Por isso a O.S. é lida da listagem.
  */
 export async function lerManutencao(id: number): Promise<Manutencao> {
-  const m = (await listarManutencoes()).find((x) => x.id === id);
+  // O index sem filtro só traz o mês anterior e o atual; se não achar, busca todo o período
+  const m =
+    (await listarManutencoes()).find((x) => x.id === id) ??
+    (await listarManutencoes({ dataInicio: "2000-01-01", dataFim: "2100-12-31" })).find((x) => x.id === id);
   if (!m) throw new ApiErro(`O.S. nº ${id} não encontrada.`, 404);
   return m;
 }

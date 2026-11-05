@@ -1,8 +1,58 @@
 import { useEffect, useMemo, useState } from "react";
-import { listarManutencoes, type Catalogos, type Manutencao } from "../api";
-import { exportarXlsx, imprimirLista, imprimirOS } from "../exportar";
+import { listarManutencoes, nomeUsuario, type Catalogos, type FiltroManutencoes, type Manutencao, type Opcao } from "../api";
+import { imprimirLista, imprimirOS } from "../exportar";
+import { ExportarExcel } from "./ExportarExcel";
 import { data, hoje } from "../formato";
 import { IconeAtualizar, IconeBusca, IconeChave, IconeMais, IconePdf, IconePlanilha } from "./Icones";
+import { SelectBusca } from "./SelectBusca";
+
+const iso = (d: Date) => {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};
+
+/** Mesmo padrão do servidor: do início do mês anterior ao fim do mês atual */
+function filtroPadrao(): Required<FiltroManutencoes> {
+  const d = new Date();
+  return {
+    dataInicio: iso(new Date(d.getFullYear(), d.getMonth() - 1, 1)),
+    dataFim: iso(new Date(d.getFullYear(), d.getMonth() + 1, 0)),
+    usuarioId: "",
+    outroId: "",
+    tipoId: "",
+    equipamentoId: "",
+    fluxoId: "",
+    prioridadeId: "",
+  };
+}
+
+function SelectFiltro({
+  rotulo,
+  value,
+  onChange,
+  opcoes,
+  vazio,
+}: {
+  rotulo: string;
+  value: string;
+  onChange: (v: string) => void;
+  opcoes: Opcao[];
+  vazio: string;
+}) {
+  return (
+    <label>
+      <span>{rotulo}</span>
+      <select value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">{vazio}</option>
+        {opcoes.map((o) => (
+          <option key={o.id} value={o.id}>
+            {o.descricao}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
 
 export function Lista({
   catalogos,
@@ -16,16 +66,76 @@ export function Lista({
   const [lista, setLista] = useState<Manutencao[] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [busca, setBusca] = useState("");
+  const [escolherExcel, setEscolherExcel] = useState(false);
+  /** filtro aplicado (o que foi buscado) e rascunho (o que está nos campos) */
+  const [filtro, setFiltro] = useState(filtroPadrao);
+  const [rascunho, setRascunho] = useState(filtroPadrao);
+  const [recarga, setRecarga] = useState(0);
 
-  const carregar = () => {
-    setErro(null);
-    setLista(null);
-    listarManutencoes()
-      .then((l) => setLista([...l].sort((a, b) => b.id - a.id)))
-      .catch((e) => setErro(e.message));
+  const set = (campo: keyof FiltroManutencoes, v: string) => setRascunho((f) => ({ ...f, [campo]: v }));
+  const periodoInvalido = !rascunho.dataInicio || !rascunho.dataFim || rascunho.dataInicio > rascunho.dataFim;
+  const padrao = filtroPadrao();
+  const chaves = Object.keys(padrao) as Array<keyof FiltroManutencoes>;
+  const alterado = chaves.some((k) => rascunho[k] !== padrao[k] || filtro[k] !== padrao[k]);
+  const pendente = chaves.some((k) => rascunho[k] !== filtro[k]);
+
+  const carregar = () => setRecarga((n) => n + 1);
+
+  const aplicar = (f: Required<FiltroManutencoes>) => {
+    setFiltro(f);
+    carregar(); // busca de novo mesmo se o filtro não mudou
   };
 
-  useEffect(carregar, []);
+  const limpar = () => {
+    const f = filtroPadrao();
+    setRascunho(f);
+    aplicar(f);
+  };
+
+  useEffect(() => {
+    let ativo = true;
+    setErro(null);
+    setLista(null);
+    listarManutencoes(filtro)
+      .then((l) => ativo && setLista([...l].sort((a, b) => b.id - a.id)))
+      .catch((e) => ativo && setErro(e.message));
+    return () => {
+      ativo = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtro, recarga]);
+
+  const equipamentos = useMemo(
+    () =>
+      catalogos.equipamentos.map((e) => ({
+        id: e.id,
+        rotulo: e.codigo ? `${e.descricao} · ${e.codigo}` : e.descricao,
+      })),
+    [catalogos.equipamentos]
+  );
+
+  const usuarios = useMemo(
+    () =>
+      catalogos.usuarios
+        .map((u) => ({ id: u.id, rotulo: nomeUsuario(u, u.id) }))
+        .sort((a, b) => a.rotulo.localeCompare(b.rotulo, "pt-BR")),
+    [catalogos.usuarios]
+  );
+
+  const descricaoFiltro = useMemo(() => {
+    const nome = (l: Opcao[], id: string) => l.find((o) => String(o.id) === id)?.descricao;
+    const partes = [
+      `${data(filtro.dataInicio)} a ${data(filtro.dataFim)}`,
+      filtro.equipamentoId && `equipamento: ${equipamentos.find((e) => String(e.id) === filtro.equipamentoId)?.rotulo}`,
+      filtro.usuarioId && `mantenedor interno: ${usuarios.find((u) => String(u.id) === filtro.usuarioId)?.rotulo}`,
+      filtro.tipoId && `tipo: ${nome(catalogos.tipos, filtro.tipoId)}`,
+      filtro.prioridadeId && `prioridade: ${nome(catalogos.prioridades, filtro.prioridadeId)}`,
+      filtro.fluxoId && `fluxo: ${nome(catalogos.fluxos, filtro.fluxoId)}`,
+      filtro.outroId && `outro: ${nome(catalogos.outros, filtro.outroId)}`,
+      busca.trim() && `busca: "${busca.trim()}"`,
+    ];
+    return partes.filter(Boolean).join(" · ");
+  }, [filtro, busca, catalogos, equipamentos, usuarios]);
 
   const filtrada = useMemo(() => {
     const t = busca.trim().toLowerCase();
@@ -47,11 +157,11 @@ export function Lista({
     const h = hoje();
     const mes = h.slice(0, 7);
     return {
-      total: lista?.length ?? 0,
-      mes: lista?.filter((m) => m.dt_programada?.startsWith(mes)).length ?? 0,
-      hoje: lista?.filter((m) => m.dt_programada === h).length ?? 0,
+      total: filtrada?.length ?? 0,
+      mes: filtrada?.filter((m) => m.dt_programada?.startsWith(mes)).length ?? 0,
+      hoje: filtrada?.filter((m) => m.dt_programada === h).length ?? 0,
     };
-  }, [lista]);
+  }, [filtrada]);
 
   return (
     <div className="pagina">
@@ -82,6 +192,63 @@ export function Lista({
         </div>
       </div>
 
+      <form
+        className="card filtros-os"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!periodoInvalido) aplicar(rascunho);
+        }}
+      >
+        <label>
+          <span>Programada de</span>
+          <input type="date" value={rascunho.dataInicio} max={rascunho.dataFim || undefined} onChange={(e) => set("dataInicio", e.target.value)} />
+        </label>
+        <label>
+          <span>Até</span>
+          <input type="date" value={rascunho.dataFim} min={rascunho.dataInicio || undefined} onChange={(e) => set("dataFim", e.target.value)} />
+        </label>
+        <label>
+          <span>Equipamento</span>
+          <SelectBusca
+            value={rascunho.equipamentoId}
+            onChange={(v) => set("equipamentoId", v)}
+            opcoes={equipamentos}
+            vazio="Todos os equipamentos"
+          />
+        </label>
+        <label>
+          <span>Mantenedor interno</span>
+          <SelectBusca
+            value={rascunho.usuarioId}
+            onChange={(v) => set("usuarioId", v)}
+            opcoes={usuarios}
+            vazio={usuarios.length ? "Todos os mantenedores" : "Nenhum cadastrado"}
+          />
+        </label>
+        <SelectFiltro rotulo="Tipo" value={rascunho.tipoId} onChange={(v) => set("tipoId", v)} opcoes={catalogos.tipos} vazio="Todos os tipos" />
+        <SelectFiltro
+          rotulo="Prioridade"
+          value={rascunho.prioridadeId}
+          onChange={(v) => set("prioridadeId", v)}
+          opcoes={catalogos.prioridades}
+          vazio="Todas as prioridades"
+        />
+        <SelectFiltro rotulo="Fluxo" value={rascunho.fluxoId} onChange={(v) => set("fluxoId", v)} opcoes={catalogos.fluxos} vazio="Todos os fluxos" />
+        <SelectFiltro rotulo="Outro" value={rascunho.outroId} onChange={(v) => set("outroId", v)} opcoes={catalogos.outros} vazio="Todos" />
+        <div className="filtros-os-acoes">
+          {periodoInvalido && <span className="filtros-os-aviso">A data inicial não pode ser maior que a final.</span>}
+          {!periodoInvalido && pendente && <span className="filtros-os-aviso">Filtros alterados — clique em Aplicar.</span>}
+          {alterado && (
+            <button type="button" onClick={limpar}>
+              Limpar
+            </button>
+          )}
+          <button type="submit" className="primario" disabled={periodoInvalido}>
+            <IconeBusca width={16} height={16} /> Aplicar filtros
+          </button>
+        </div>
+      </form>
+
       <div className="barra">
         <div className="campo-busca">
           <IconeBusca />
@@ -96,16 +263,16 @@ export function Lista({
             <IconeAtualizar width={16} height={16} /> Atualizar
           </button>
           <button
-            onClick={() => filtrada && imprimirLista(filtrada, catalogos, busca.trim() ? `filtro: "${busca.trim()}"` : undefined)}
+            onClick={() => filtrada && imprimirLista(filtrada, catalogos, descricaoFiltro)}
             disabled={!filtrada?.length}
             title="Gerar PDF da lista (imprimir ou salvar como PDF)"
           >
             <IconePdf width={16} height={16} /> PDF
           </button>
           <button
-            onClick={() => filtrada && exportarXlsx(filtrada, catalogos)}
+            onClick={() => setEscolherExcel(true)}
             disabled={!filtrada?.length}
-            title="Baixar planilha .xlsx com O.S., materiais e serviços"
+            title="Baixar planilha .xlsx (padrão ou relatório de atividades)"
           >
             <IconePlanilha width={16} height={16} /> Excel
           </button>
@@ -126,6 +293,7 @@ export function Lista({
               <tr>
                 <th>Nº</th>
                 <th>Programada</th>
+                <th>Situação</th>
                 <th>Equipamento</th>
                 <th>Tipo</th>
                 <th>Prioridade</th>
@@ -139,6 +307,13 @@ export function Lista({
                 <tr key={m.id} onClick={() => onAbrir(m.id)} className="clicavel">
                   <td className="num">#{m.id}</td>
                   <td>{data(m.dt_programada)}</td>
+                  <td>
+                    {m.finalizado ? (
+                      <span className="pilula verde" title="O.S. liberada: edição bloqueada">Liberada</span>
+                    ) : (
+                      <span className="pilula ambar">Em aberto</span>
+                    )}
+                  </td>
                   <td>
                     {m.manutencao_equipamento?.descricao ?? "—"}
                     {m.manutencao_equipamento?.codigo && (
@@ -169,6 +344,16 @@ export function Lista({
             </tbody>
           </table>
         </div>
+      )}
+
+      {escolherExcel && filtrada && (
+        <ExportarExcel
+          lista={filtrada}
+          catalogos={catalogos}
+          dataInicio={filtro.dataInicio}
+          dataFim={filtro.dataFim}
+          onFechar={() => setEscolherExcel(false)}
+        />
       )}
     </div>
   );

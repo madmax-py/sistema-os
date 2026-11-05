@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { listarTodasProdutoSaidas, movimento, type Movimento, type ProdutoSaida } from "../api";
 import { imprimirSaida } from "../exportar";
 import { data, moeda } from "../formato";
+import { AcoesFiltro, useFiltroAplicado } from "./FiltroAplicado";
 import { SelectBusca } from "./SelectBusca";
 import {
   rotulo,
@@ -36,10 +37,6 @@ function ListaMovimentos({ catalogos, onAbrir, onNova }: PropsLista) {
   const [erro, setErro] = useState<string | null>(null);
   const [aba, setAba] = useState<Aba>("saida");
   const [busca, setBusca] = useState("");
-  const [empresa, setEmpresa] = useState("");
-  const [usuario, setUsuario] = useState("");
-  const [tipoId, setTipoId] = useState("");
-  const [sit, setSit] = useState("");
 
   const carregar = () => {
     setErro(null);
@@ -49,6 +46,12 @@ function ListaMovimentos({ catalogos, onAbrir, onNova }: PropsLista) {
       .catch((e) => setErro(`Não foi possível listar os lançamentos (GET produto_saidas): ${e.message}`));
   };
   useEffect(carregar, []);
+
+  const { filtro, rascunho, set, setAmbos, aplicar, limpar, alterado, pendente } = useFiltroAplicado(
+    () => ({ empresa: "", usuario: "", tipoId: "", sit: "" }),
+    carregar
+  );
+  const { empresa, usuario, tipoId, sit } = filtro;
 
   // Movimento calculado uma vez por lista
   const comMov = useMemo(
@@ -105,7 +108,7 @@ function ListaMovimentos({ catalogos, onAbrir, onNova }: PropsLista) {
   const variasEmpresas = new Set(lista?.map((s) => s.empresa_id)).size > 1;
   const trocarAba = (a: Aba) => {
     setAba(a);
-    setTipoId("");
+    setAmbos("tipoId", "");
   };
   const rotuloAba = aba === "entrada" ? "entrada" : aba === "saida" ? "saída" : "lançamento";
 
@@ -160,13 +163,19 @@ function ListaMovimentos({ catalogos, onAbrir, onNova }: PropsLista) {
         </p>
       )}
 
-      <div className="card filtros">
+      <form
+        className={`card filtros-os${catalogos.empresas.length > 1 ? "" : " tres"}`}
+        onSubmit={(e) => {
+          e.preventDefault();
+          aplicar();
+        }}
+      >
         {catalogos.empresas.length > 1 && (
           <label>
             <span>Empresa</span>
             <SelectBusca
-              value={empresa}
-              onChange={setEmpresa}
+              value={rascunho.empresa}
+              onChange={(v) => set("empresa", v)}
               opcoes={catalogos.empresas.map((e) => ({ id: e.id, rotulo: e.nome_fantasia || `#${e.id}` }))}
               vazio="Todas as empresas"
             />
@@ -175,44 +184,27 @@ function ListaMovimentos({ catalogos, onAbrir, onNova }: PropsLista) {
         <label>
           <span>Usuário</span>
           <SelectBusca
-            value={usuario}
-            onChange={setUsuario}
+            value={rascunho.usuario}
+            onChange={(v) => set("usuario", v)}
             opcoes={catalogos.usuarios.map((u) => ({ id: u.id, rotulo: rotulo(u) }))}
             vazio="Todos os usuários"
           />
         </label>
         <label>
           <span>Tipo</span>
-          <SelectBusca value={tipoId} onChange={setTipoId} opcoes={tiposAba} vazio="Todos os tipos" />
+          <SelectBusca value={rascunho.tipoId} onChange={(v) => set("tipoId", v)} opcoes={tiposAba} vazio="Todos os tipos" />
         </label>
         <label>
           <span>Situação</span>
-          <select value={sit} onChange={(e) => setSit(e.target.value)}>
+          <select value={rascunho.sit} onChange={(e) => set("sit", e.target.value)}>
             <option value="">Todas</option>
             {SITUACOES.map((x) => (
               <option key={x}>{x}</option>
             ))}
           </select>
         </label>
-        <div className="filtros-acoes">
-          {(empresa || usuario || tipoId || sit) && (
-            <button
-              type="button"
-              onClick={() => {
-                setEmpresa("");
-                setUsuario("");
-                setTipoId("");
-                setSit("");
-              }}
-            >
-              Limpar
-            </button>
-          )}
-          <button type="button" onClick={carregar}>
-            <IconeAtualizar width={16} height={16} /> Atualizar
-          </button>
-        </div>
-      </div>
+        <AcoesFiltro alterado={alterado} pendente={pendente} carregando={!lista && !erro} onLimpar={limpar} />
+      </form>
 
       <div className="barra">
         <div className="campo-busca">
@@ -224,6 +216,9 @@ function ListaMovimentos({ catalogos, onAbrir, onNova }: PropsLista) {
           />
         </div>
         <div className="acoes">
+          <button onClick={carregar}>
+            <IconeAtualizar width={16} height={16} /> Atualizar
+          </button>
           <button className="primario" onClick={() => onNova(aba === "entrada" ? "entrada" : "saida")}>
             <IconeMais width={16} height={16} /> {aba === "entrada" ? "Nova entrada" : "Nova saída"}
           </button>

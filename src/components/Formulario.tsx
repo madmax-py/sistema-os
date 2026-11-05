@@ -185,6 +185,7 @@ export function Formulario({
   const [itens, setItens] = useState<ItemForm[]>([]);
   const [servicos, setServicos] = useState<ServicoForm[]>([]);
   const [carregando, setCarregando] = useState(id !== null);
+  const [finalizada, setFinalizada] = useState(false);
   // Materiais: produtos cadastrados (cache compartilhado com o PDV)
   const produtos = useProdutos();
   useEffect(iniciarProdutos, []);
@@ -222,6 +223,7 @@ export function Formulario({
     if (id === null) return;
     lerManutencao(id)
       .then((m: Manutencao) => {
+        setFinalizada(!!m.finalizado);
         setSetor(setorDe(String(m.manutencao_equipamento_id ?? "")));
         setCab({
           equipamento: String(m.manutencao_equipamento_id ?? ""),
@@ -382,6 +384,18 @@ export function Formulario({
   };
 
   if (carregando) return <p className="muted">Carregando…</p>;
+
+  if (finalizada)
+    return (
+      <div className="pagina">
+        <div className="erro-caixa">A O.S. nº {id} está liberada e não pode mais ser editada.</div>
+        <div className="acoes">
+          <button type="button" onClick={onCancelar}>
+            Voltar
+          </button>
+        </div>
+      </div>
+    );
 
   const opc = (l: { id: number; descricao: string }[]) => l.map((x) => ({ id: x.id, rotulo: x.descricao }));
   const equipamentosDoSetor = catalogos.equipamentos.filter((e) => e.ativo !== false && doSetor(e)).length;

@@ -10,7 +10,7 @@ const custoServicos = (m: Manutencao) =>
   (m.manutencao_servicos ?? []).reduce((s, x) => s + (x.vlcusto ?? 0), 0);
 
 /** Horas entre início e término (0 se faltar horário ou término < início) */
-const horasIntervalo = (s: { dt_inicio: string | null; hr_inicio: string | null; dt_termino: string | null; hr_termino: string | null }) => {
+export const horasIntervalo = (s: { dt_inicio: string | null; hr_inicio: string | null; dt_termino: string | null; hr_termino: string | null }) => {
   const hi = hora(s.hr_inicio);
   const ht = hora(s.hr_termino);
   if (!s.dt_inicio || !s.dt_termino || !hi || !ht) return 0;
@@ -25,7 +25,7 @@ const horasTerceiros = (m: Manutencao) => (m.manutencao_servicos ?? []).reduce((
 
 const arredondar = (v: number) => Math.round(v * 100) / 100;
 
-function nomes(m: Manutencao, c: Catalogos) {
+export function nomes(m: Manutencao, c: Catalogos) {
   const eq = m.manutencao_equipamento ?? c.equipamentos.find((x) => x.id === m.manutencao_equipamento_id);
   const desc = (l: { id: number; descricao: string }[], id: number, aninhado?: { descricao: string }) =>
     aninhado?.descricao ?? l.find((x) => x.id === id)?.descricao ?? "";

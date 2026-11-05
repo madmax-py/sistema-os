@@ -19,6 +19,7 @@ import { imprimirSaida } from "../exportar";
 import { data, moeda } from "../formato";
 import { BarrasH, Colunas, Divisao, moedaCurta, num, pct, Tile } from "./Dashboard";
 import { Secao } from "./Detalhe";
+import { AcoesFiltro, useFiltroAplicado } from "./FiltroAplicado";
 import { SelectBusca } from "./SelectBusca";
 import {
   IconeAlerta,
@@ -93,7 +94,6 @@ export function DashboardSaidas() {
   const [cad, setCad] = useState<CatalogosSaida | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(false);
-  const [filtro, setFiltro] = useState<FiltroSaidas>(FILTRO_SAIDAS_VAZIO);
   const [atualizadoEm, setAtualizadoEm] = useState<Date | null>(null);
   const [aba, setAba] = useState<Aba>("saida");
   const t = TEXTOS[aba];
@@ -118,6 +118,10 @@ export function DashboardSaidas() {
       .finally(() => setCarregando(false));
   };
   useEffect(carregar, []);
+  const { filtro, rascunho, set, setAmbos, aplicar, limpar, alterado, pendente } = useFiltroAplicado<FiltroSaidas>(
+    () => ({ ...FILTRO_SAIDAS_VAZIO }),
+    carregar
+  );
 
   // Separa pelo campo "tipo" (0 = Entrada, 1 = Saída); sem ele, conta como saída
   const movs = useMemo(
@@ -172,8 +176,6 @@ export function DashboardSaidas() {
   }
   if (!ind || !cad) return <p className="muted">Calculando indicadores…</p>;
 
-  const filtrado = Object.values(filtro).some(Boolean);
-  const set = <K extends keyof FiltroSaidas>(k: K, v: FiltroSaidas[K]) => setFiltro((f) => ({ ...f, [k]: v }));
   const periodo =
     ind.primeira && ind.ultima
       ? ind.primeira === ind.ultima
@@ -225,7 +227,7 @@ export function DashboardSaidas() {
             className={`${a.cor}${aba === a.id ? " ativa" : ""}`}
             onClick={() => {
               setAba(a.id);
-              set("tipoId", "");
+              setAmbos("tipoId", "");
             }}
           >
             <span className="texto-aba">{a.rotulo}</span>
@@ -234,11 +236,17 @@ export function DashboardSaidas() {
         ))}
       </div>
 
-      <div className="card filtros">
+      <form
+        className={`card filtros-os${opcoes.empresas.length > 1 ? "" : " tres"}`}
+        onSubmit={(e) => {
+          e.preventDefault();
+          aplicar();
+        }}
+      >
         {opcoes.empresas.length > 1 && (
           <label>
             <span>Empresa</span>
-            <select value={filtro.empresaId} onChange={(e) => set("empresaId", e.target.value)}>
+            <select value={rascunho.empresaId} onChange={(e) => set("empresaId", e.target.value)}>
               <option value="">Todas as empresas</option>
               {opcoes.empresas.map((o) => (
                 <option key={o.id} value={o.id}>
@@ -250,7 +258,7 @@ export function DashboardSaidas() {
         )}
         <label>
           <span>Usuário</span>
-          <select value={filtro.usuarioId} onChange={(e) => set("usuarioId", e.target.value)}>
+          <select value={rascunho.usuarioId} onChange={(e) => set("usuarioId", e.target.value)}>
             <option value="">Todos os usuários</option>
             {opcoes.usuarios.map((o) => (
               <option key={o.id} value={o.id}>
@@ -261,7 +269,7 @@ export function DashboardSaidas() {
         </label>
         <label>
           <span>Tipo</span>
-          <select value={filtro.tipoId} onChange={(e) => set("tipoId", e.target.value)}>
+          <select value={rascunho.tipoId} onChange={(e) => set("tipoId", e.target.value)}>
             <option value="">Todos os tipos</option>
             {opcoes.tipos.map((o) => (
               <option key={o.id} value={o.id}>
@@ -272,28 +280,18 @@ export function DashboardSaidas() {
         </label>
         <label>
           <span>Situação</span>
-          <select value={filtro.situacao} onChange={(e) => set("situacao", e.target.value as FiltroSaidas["situacao"])}>
+          <select value={rascunho.situacao} onChange={(e) => set("situacao", e.target.value as FiltroSaidas["situacao"])}>
             <option value="">Todas</option>
             {SITUACOES.map((x) => (
               <option key={x}>{x}</option>
             ))}
           </select>
         </label>
-        <FiltroDestino rotulo="Equipamento" vazio="Todos os equipamentos" valor={filtro.equipamentoId} opcoes={opcoes.equipamentos} onChange={(v) => set("equipamentoId", v)} />
-        <FiltroDestino rotulo="Veículo" vazio="Todos os veículos" valor={filtro.veiculoId} opcoes={opcoes.veiculos} onChange={(v) => set("veiculoId", v)} />
-        <FiltroDestino rotulo="Centro de custo" vazio="Todos os centros de custo" valor={filtro.centroCustoId} opcoes={opcoes.centros} onChange={(v) => set("centroCustoId", v)} />
-        <div className="filtros-acoes">
-          {filtrado && (
-            <button type="button" onClick={() => setFiltro(FILTRO_SAIDAS_VAZIO)}>
-              Limpar
-            </button>
-          )}
-          <button type="button" onClick={carregar} disabled={carregando}>
-            <IconeAtualizar width={16} height={16} className={carregando ? "girando" : undefined} />
-            {carregando ? "Atualizando…" : "Atualizar"}
-          </button>
-        </div>
-      </div>
+        <FiltroDestino rotulo="Equipamento" vazio="Todos os equipamentos" valor={rascunho.equipamentoId} opcoes={opcoes.equipamentos} onChange={(v) => set("equipamentoId", v)} />
+        <FiltroDestino rotulo="Veículo" vazio="Todos os veículos" valor={rascunho.veiculoId} opcoes={opcoes.veiculos} onChange={(v) => set("veiculoId", v)} />
+        <FiltroDestino rotulo="Centro de custo" vazio="Todos os centros de custo" valor={rascunho.centroCustoId} opcoes={opcoes.centros} onChange={(v) => set("centroCustoId", v)} />
+        <AcoesFiltro alterado={alterado} pendente={pendente} carregando={carregando} onLimpar={limpar} />
+      </form>
       {erro && <div className="erro-caixa">{erro}</div>}
 
       {/* Números principais */}
@@ -301,7 +299,7 @@ export function DashboardSaidas() {
         <Tile
           rotulo={t.Plural}
           valor={num(ind.total)}
-          detalhe={filtrado ? `de ${num(ind.totalGeral)} carregadas` : `${num(ind.hoje)} hoje · ${num(ind.ultimos7)} nos últimos 7 dias`}
+          detalhe={Object.values(filtro).some(Boolean) ? `de ${num(ind.totalGeral)} carregadas` : `${num(ind.hoje)} hoje · ${num(ind.ultimos7)} nos últimos 7 dias`}
           icone={<IconeLista width={18} height={18} />}
           cor="azul"
         />

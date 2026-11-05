@@ -100,13 +100,13 @@ function zip(arquivos: { nome: string; conteudo: string }[]): Blob {
 /* Pacote OOXML                                                               */
 /* ------------------------------------------------------------------------- */
 
-const escapar = (t: string) =>
+export const escapar = (t: string) =>
   t.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[c]!)
     // o XML não aceita caracteres de controle
     .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "");
 
 /** 0 → A, 26 → AA */
-function coluna(i: number): string {
+export function coluna(i: number): string {
   let s = "";
   for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s;
   return s;
@@ -140,8 +140,28 @@ function folha(p: Planilha): string {
 /** Nome de aba válido no Excel: até 31 caracteres, sem : \ / ? * [ ] */
 const nomeAba = (n: string) => n.replace(/[:\\/?*[\]]/g, "-").slice(0, 31) || "Planilha";
 
-export function gerarXlsx(planilhas: Planilha[]): Blob {
-  const abas = planilhas.length ? planilhas : [{ nome: "Planilha1", linhas: [] }];
+const ESTILOS_PADRAO = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF1C84C6"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs></styleSheet>`;
+
+/** Aba já montada em XML (para planilhas com layout próprio) */
+export interface AbaXml {
+  nome: string;
+  /** conteúdo completo de xl/worksheets/sheetN.xml */
+  xml: string;
+  /** linhas repetidas no topo de cada página impressa (ex.: "$1:$2") */
+  titulosImpressao?: string;
+}
+
+/** Monta o pacote .xlsx a partir de abas em XML e de um styles.xml próprio */
+export function gerarXlsxBruto(abas: AbaXml[], estilos: string): Blob {
+  const nomes = abas.map((a) => nomeAba(a.nome));
+  const titulos = abas
+    .map((a, i) =>
+      a.titulosImpressao
+        ? `<definedName name="_xlnm.Print_Titles" localSheetId="${i}">&apos;${escapar(nomes[i]).replace(/&apos;/g, "&apos;&apos;")}&apos;!${a.titulosImpressao}</definedName>`
+        : ""
+    )
+    .join("");
   const arquivos = [
     {
       nome: "[Content_Types].xml",
@@ -161,9 +181,9 @@ export function gerarXlsx(planilhas: Planilha[]): Blob {
     {
       nome: "xl/workbook.xml",
       conteudo: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${abas
-        .map((p, i) => `<sheet name="${escapar(nomeAba(p.nome))}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`)
-        .join("")}</sheets></workbook>`,
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${nomes
+        .map((n, i) => `<sheet name="${escapar(n)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`)
+        .join("")}</sheets>${titulos ? `<definedNames>${titulos}</definedNames>` : ""}</workbook>`,
     },
     {
       nome: "xl/_rels/workbook.xml.rels",
@@ -175,15 +195,16 @@ export function gerarXlsx(planilhas: Planilha[]): Blob {
         )
         .join("")}<Relationship Id="rId${abas.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`,
     },
-    {
-      // dois estilos: 0 = normal, 1 = cabeçalho (negrito com fundo)
-      nome: "xl/styles.xml",
-      conteudo: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF1C84C6"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs></styleSheet>`,
-    },
-    ...abas.map((p, i) => ({ nome: `xl/worksheets/sheet${i + 1}.xml`, conteudo: folha(p) })),
+    { nome: "xl/styles.xml", conteudo: estilos },
+    ...abas.map((a, i) => ({ nome: `xl/worksheets/sheet${i + 1}.xml`, conteudo: a.xml })),
   ];
   return zip(arquivos);
+}
+
+export function gerarXlsx(planilhas: Planilha[]): Blob {
+  const abas = planilhas.length ? planilhas : [{ nome: "Planilha1", linhas: [] }];
+  // dois estilos: 0 = normal, 1 = cabeçalho (negrito com fundo)
+  return gerarXlsxBruto(abas.map((p) => ({ nome: p.nome, xml: folha(p) })), ESTILOS_PADRAO);
 }
 
 /** Dispara o download de um Blob no navegador */

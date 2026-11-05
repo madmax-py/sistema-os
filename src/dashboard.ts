@@ -5,10 +5,12 @@
 import { nomeUsuario, produtoDoItem, type Catalogos, type Manutencao, type ManutencaoServico } from "./api";
 import { hoje, hora } from "./formato";
 
-export type Periodo = "todos" | "30d" | "90d" | "12m" | "ano";
-
 export interface Filtro {
-  periodo: Periodo;
+  /** intervalo da data programada (AAAA-MM-DD) */
+  dataInicio: string;
+  dataFim: string;
+  /** "" = todas; "sim" = só as finalizadas */
+  finalizado: "" | "sim";
   tipoId: string;
   equipamentoId: string;
   /** mantenedor interno (empresa_usuario_id); SEM_USUARIO = O.S. sem mantenedor interno */
@@ -16,7 +18,24 @@ export interface Filtro {
 }
 
 export const SEM_USUARIO = "sem";
-export const FILTRO_VAZIO: Filtro = { periodo: "todos", tipoId: "", equipamentoId: "", usuarioId: "" };
+
+const iso = (d: Date) => {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};
+
+/** Mesmo padrão da lista de O.S.: do início do mês anterior ao fim do mês atual */
+export function filtroPadrao(): Filtro {
+  const d = new Date();
+  return {
+    dataInicio: iso(new Date(d.getFullYear(), d.getMonth() - 1, 1)),
+    dataFim: iso(new Date(d.getFullYear(), d.getMonth() + 1, 0)),
+    finalizado: "",
+    tipoId: "",
+    equipamentoId: "",
+    usuarioId: "",
+  };
+}
 
 export interface Contagem {
   rotulo: string;
@@ -104,20 +123,6 @@ const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "o
 const DIAS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
 const dia = (iso: string) => new Date(`${iso.slice(0, 10)}T12:00:00`);
-const somaDias = (iso: string, n: number) => {
-  const d = dia(iso);
-  d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
-};
-
-function inicioDoPeriodo(p: Periodo): string | null {
-  const h = hoje();
-  if (p === "30d") return somaDias(h, -29);
-  if (p === "90d") return somaDias(h, -89);
-  if (p === "12m") return `${Number(h.slice(0, 4)) - 1}-${h.slice(5, 7)}-01`;
-  if (p === "ano") return `${h.slice(0, 4)}-01-01`;
-  return null;
-}
 
 type IntervaloHoras = { dt_inicio: string | null; hr_inicio: string | null; dt_termino: string | null; hr_termino: string | null };
 
@@ -166,10 +171,11 @@ function contar<T>(lista: T[], chave: (x: T) => string | undefined, peso: (x: T)
 }
 
 export function filtrar(lista: Manutencao[], f: Filtro): Manutencao[] {
-  const inicio = inicioDoPeriodo(f.periodo);
   return lista.filter(
     (m) =>
-      (!inicio || (m.dt_programada ?? "") >= inicio) &&
+      (!f.dataInicio || (m.dt_programada ?? "") >= f.dataInicio) &&
+      (!f.dataFim || (m.dt_programada ?? "").slice(0, 10) <= f.dataFim) &&
+      (!f.finalizado || !!m.finalizado) &&
       (!f.tipoId || String(m.manutencao_tipo_id) === f.tipoId) &&
       (!f.equipamentoId || String(m.manutencao_equipamento_id) === f.equipamentoId) &&
       (!f.usuarioId ||
@@ -180,9 +186,9 @@ export function filtrar(lista: Manutencao[], f: Filtro): Manutencao[] {
 function serieMensal(lista: Manutencao[], f: Filtro): Mes[] {
   const h = hoje();
   const datas = lista.map((m) => m.dt_programada).filter(Boolean).sort();
-  // Janela: do início do período (ou da O.S. mais antiga) até o mês atual, no máximo 24 meses
-  const inicio = inicioDoPeriodo(f.periodo) ?? datas[0] ?? h;
-  const fimChave = (datas[datas.length - 1] ?? h) > h ? datas[datas.length - 1] : h;
+  // Janela: do início ao fim do período escolhido (ou das O.S. existentes), no máximo 24 meses
+  const inicio = f.dataInicio || datas[0] || h;
+  const fimChave = f.dataFim || ((datas[datas.length - 1] ?? h) > h ? datas[datas.length - 1] : h);
   const meses: Mes[] = [];
   let a = Number(inicio.slice(0, 4));
   let mm = Number(inicio.slice(5, 7));
